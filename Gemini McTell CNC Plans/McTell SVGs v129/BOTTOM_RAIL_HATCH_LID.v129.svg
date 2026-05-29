@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="8.2000in" 
+     height="8.5950in" 
+     viewBox="0 0 8.2000 8.5950">
+  <title>BOTTOM_RAIL_HATCH_LID</title>
+  <g id="BOTTOM_RAIL_HATCH_LID" data-name="BOTTOM_RAIL_HATCH_LID">
+  <rect x="2.0000" y="2.0000" width="4.2000" height="4.5950" fill="none" stroke="#ff0000" stroke-width="0.001"/>
+  <rect x="2.6000" y="2.6000" width="3.0000" height="3.3950" fill="none" stroke="#e09500" stroke-width="0.001"/>
+  <circle cx="2.3906" cy="2.3906" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="5.8094" cy="2.3906" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="2.3906" cy="6.2044" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="5.8094" cy="6.2044" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+<path d="M 3.8500 2.9609 L 4.3500 2.9609 L 4.3500 3.4609 L 4.7791 3.4609 A 0.1575 0.1575 0 0 1 4.9366 3.6184 L 4.9366 4.9766 A 0.1575 0.1575 0 0 1 4.7791 5.1341 L 3.4209 5.1341 A 0.1575 0.1575 0 0 1 3.2634 4.9766 L 3.2634 3.6184 A 0.1575 0.1575 0 0 1 3.4209 3.4609 L 3.8500 3.4609 Z" fill="none" stroke="#8fea00" stroke-width="0.001"/>
+  <circle cx="3.4898" cy="3.6873" r="0.0689" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="4.7102" cy="3.6873" r="0.0689" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="3.4898" cy="4.9077" r="0.0689" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="4.7102" cy="4.9077" r="0.0689" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  </g>
+</svg>

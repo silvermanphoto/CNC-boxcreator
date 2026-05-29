@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="18.0000in" 
+     height="18.0000in" 
+     viewBox="0 0 18.0000 18.0000">
+  <title>BACK_PANEL_HATCH_CUT</title>
+  <g id="BACK_PANEL_HATCH_CUT" data-name="BACK_PANEL_HATCH_CUT">
+  <rect x="3.3908" y="9.0832" width="11.2184" height="2.8184" fill="none" stroke="#ff0000" stroke-width="0.001"/>
+  <rect x="2.7508" y="8.4432" width="12.4984" height="4.0984" fill="none" stroke="#e09500" stroke-width="0.001"/>
+  <circle cx="3.0708" cy="8.7632" r="0.1406" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="14.9292" cy="8.7632" r="0.1406" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="3.0708" cy="12.2216" r="0.1406" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="14.9292" cy="12.2216" r="0.1406" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  </g>
+</svg>

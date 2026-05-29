@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="14.0000in" 
+     height="14.0000in" 
+     viewBox="0 0 14.0000 14.0000">
+  <title>FRONT_BEZEL_PERIMETER</title>
+  <g id="FRONT_BEZEL_PERIMETER" data-name="FRONT_BEZEL_PERIMETER">
+  <path d="M 2.0000 2.0000 L 12.0000 2.0000 L 12.0000 12.0000 L 2.0000 12.0000 L 2.0000 2.0000 Z" fill="none" stroke="#ff0000" stroke-width="0.001"/>
+  </g>
+</svg>

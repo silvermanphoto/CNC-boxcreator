@@ -1,0 +1,15 @@
+<svg width="110in" height="85in" viewBox="-5 -5 110 85" xmlns="http://www.w3.org/2000/svg">
+<style>.label { font-family: "Josefin Sans Semibold", sans-serif; font-size: 0.33in; fill: black; }</style>
+<rect x="-2" y="-2" width="105" height="80" fill="none" stroke="red" stroke-width="0.05" />
+<rect x="0" y="0" width="45.25" height="45.25" fill="none" stroke="black" stroke-width="0.01"/>
+<rect x="1" y="1" width="43.25" height="43.25" fill="none" stroke="blue" stroke-width="0.01"/>
+<text x="0" y="-1" class="label">A. FACE PANEL - 45.25" x 45.25"</text>
+<rect x="0" y="48" width="45.25" height="4.0" fill="none" stroke="black" stroke-width="0.01"/>
+<rect x="20.38544094488189" y="49.165" width="1.67" height="1.67" fill="none" stroke="blue" stroke-width="0.01"/>
+<circle cx="21.22044094488189" cy="50.0" r="0.375" fill="none" stroke="red" stroke-width="0.01"/>
+<circle cx="18.22044094488189" cy="50.0" r="0.25" fill="none" stroke="black" stroke-width="0.01"/>
+<text x="0" y="47" class="label">D. BOTTOM RAIL (WITH NEMA 17)</text>
+<rect x="50" y="0" width="45.25" height="45.25" fill="none" stroke="black" stroke-width="0.01"/>
+<rect x="50.625" y="0.625" width="44.0" height="44.0" fill="none" stroke="green" stroke-width="0.01"/>
+<text x="50" y="-1" class="label">E. BACK PANEL (RABBETED)</text>
+</svg>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="14.0000in" 
+     height="14.0000in" 
+     viewBox="0 0 14.0000 14.0000">
+  <title>VISUALIZATION_FRONT_BEZEL.v127</title>
+  <g id="VISUALIZATION_FRONT_BEZEL.v127" data-name="VISUALIZATION_FRONT_BEZEL.v127">
+  <path d="M 2.0000 2.0000 L 12.0000 2.0000 L 12.0000 12.0000 L 2.0000 12.0000 L 2.0000 2.0000 Z" fill="none" stroke="#ff0000" stroke-width="0.001"/>
+  <rect x="2.5984" y="2.5984" width="8.8032" height="8.8032" fill="none" stroke="#e09500" stroke-width="0.001"/>
+  </g>
+</svg>

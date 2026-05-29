@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="42.30mm"
+     height="42.30mm"
+     viewBox="0 0 42.30 42.30">
+  <!-- Motor Pocket Shape with Mounting Holes -->
+  <!-- Size: 42.30 x 42.30 mm -->
+  <!-- Pocket depth: 13.77 mm -->
+  <!-- Mounting holes: 5.20 mm diameter, through -->
+  <!-- Hole spacing: 31.00 mm x 31.00 mm (NEMA 17) -->
+
+  <!-- Pocket outline -->
+  <rect x="0" y="0" width="42.30" height="42.30"
+        fill="none" stroke="black" stroke-width="0.1"/>
+
+  <!-- Mounting holes (5.20mm diameter, through) -->
+  <circle cx="5.65" cy="5.65" r="2.60" fill="none" stroke="black" stroke-width="0.1"/>
+  <circle cx="36.65" cy="5.65" r="2.60" fill="none" stroke="black" stroke-width="0.1"/>
+  <circle cx="5.65" cy="36.65" r="2.60" fill="none" stroke="black" stroke-width="0.1"/>
+  <circle cx="36.65" cy="36.65" r="2.60" fill="none" stroke="black" stroke-width="0.1"/>
+</svg>

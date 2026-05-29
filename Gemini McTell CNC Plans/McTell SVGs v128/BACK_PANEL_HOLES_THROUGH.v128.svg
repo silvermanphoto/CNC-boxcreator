@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="14.0000in" 
+     height="14.0000in" 
+     viewBox="0 0 14.0000 14.0000">
+  <title>BACK_PANEL_HOLES</title>
+  <g id="BACK_PANEL_HOLES" data-name="BACK_PANEL_HOLES">
+  <circle cx="3.4000" cy="5.3333" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="5.6400" cy="5.3333" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="8.2800" cy="5.3333" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="10.6000" cy="5.3333" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  </g>
+</svg>

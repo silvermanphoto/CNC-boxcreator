@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" width="9.2in" height="8.1969in" version="1.1" viewBox="0 0 662.4 590.1768">
+  <!-- Generator: Adobe Illustrator 29.7.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 8)  -->
+  <defs>
+    <style>
+      .st0 {
+        stroke: #e09500;
+      }
+
+      .st0, .st1, .st2, .st3 {
+        fill: none;
+        stroke-miterlimit: 288;
+      }
+
+      .st1 {
+        stroke: #8fea00;
+      }
+
+      .st2 {
+        stroke: blue;
+      }
+
+      .st3 {
+        stroke: red;
+      }
+    </style>
+  </defs>
+  <g id="BOTTOM_RAIL_HATCH_LID">
+    <rect class="st3" x="144" y="144" width="374.4" height="302.1768"/>
+    <rect class="st0" x="187.2" y="187.2" width="288" height="215.7768"/>
+    <circle class="st2" cx="172.1232" cy="172.1232" r="7.2"/>
+    <circle class="st2" cx="490.2768" cy="172.1232" r="7.2"/>
+    <circle class="st2" cx="172.1232" cy="418.0464" r="7.2"/>
+    <circle class="st2" cx="490.2768" cy="418.0464" r="7.2"/>
+    <path class="st1" d="M313.2,198.8496h36v36h30.8952c6.2629,0,11.34,5.0771,11.34,11.34h0v97.7976c-.004,6.2601-5.0799,11.3328-11.34,11.3328h-97.7904c-6.2601,0-11.336-5.0727-11.34-11.3328v-97.7976c0-6.2629,5.0771-11.34,11.34-11.34h30.8952v-36Z"/>
+    <circle class="st2" cx="287.2656" cy="251.1504" r="4.9608"/>
+    <circle class="st2" cx="375.1344" cy="251.1504" r="4.9608"/>
+    <circle class="st2" cx="287.2656" cy="339.0264" r="4.9608"/>
+    <circle class="st2" cx="375.1344" cy="339.0264" r="4.9608"/>
+  </g>
+</svg>

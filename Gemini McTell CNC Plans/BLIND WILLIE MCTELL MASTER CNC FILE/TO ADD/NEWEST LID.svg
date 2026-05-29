@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" width="3.3534in" height="4.1516in" viewBox="0 0 241.4445 298.9131">
+  <defs>
+    <style>
+      .cls-1 {
+        stroke: #e09500;
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-4 {
+        fill: none;
+        stroke-miterlimit: 288;
+      }
+
+      .cls-2 {
+        stroke: #8fea00;
+      }
+
+      .cls-3 {
+        stroke: blue;
+      }
+
+      .cls-4 {
+        stroke: red;
+      }
+    </style>
+  </defs>
+  <g id="HATCH_LID_-_goes_elsewhere" data-name="HATCH LID - goes elsewhere">
+    <rect id="HATCH_ITSELF" data-name="HATCH ITSELF" class="cls-4" x="-28.2343" y="29.2343" width="297.9131" height="240.4445" transform="translate(-28.7343 270.1788) rotate(-90)"/>
+    <rect class="cls-1" x="18.2734" y="72.6993" width="204.8976" height="153.5144" transform="translate(-28.7343 270.1788) rotate(-90)"/>
+    <circle class="cls-3" cx="35.2103" cy="269.5263" r="7.2"/>
+    <circle class="cls-3" cx="35.2102" cy="29.3799" r="7.2"/>
+    <circle class="cls-3" cx="207.1335" cy="269.5262" r="7.2"/>
+    <circle class="cls-3" cx="207.1334" cy="29.3798" r="7.2"/>
+    <path class="cls-2" d="M24.4834,167.4565v-36h36v-30.8952c0-6.2629,5.0771-11.34,11.34-11.34h97.7976c6.2601.004,11.3328,5.0799,11.3328,11.34v97.7904c0,6.2601-5.0727,11.336-11.3328,11.34h-97.7976c-6.2629,0-11.34-5.0771-11.34-11.34v-30.8952H24.4834h0Z"/>
+    <circle class="cls-3" cx="76.7843" cy="193.391" r="4.9608"/>
+    <circle class="cls-3" cx="76.7843" cy="105.5222" r="4.9608"/>
+    <circle class="cls-3" cx="164.6602" cy="193.391" r="4.9608"/>
+    <circle class="cls-3" cx="164.6602" cy="105.5222" r="4.9608"/>
+  </g>
+</svg>

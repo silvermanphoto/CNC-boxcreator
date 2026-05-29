@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="42.8032in" 
+     height="8.2500in" 
+     viewBox="0 0 42.8032 8.2500">
+  <title>BOTTOM_RAIL_HOLES</title>
+  <g id="BOTTOM_RAIL_HOLES" data-name="BOTTOM_RAIL_HOLES">
+  <circle cx="17.5243" cy="4.1250" r="0.2500" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="16.9141" cy="3.5148" r="0.0669" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="18.1346" cy="3.5148" r="0.0669" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="16.9141" cy="4.7352" r="0.0669" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  <circle cx="18.1346" cy="4.7352" r="0.0669" fill="none" stroke="#0000ff" stroke-width="0.001"/>
+  </g>
+</svg>

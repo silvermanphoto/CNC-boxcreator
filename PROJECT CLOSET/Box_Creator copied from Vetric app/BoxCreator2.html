@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Box Creator</title>
+
+    <!-- Bootstrap -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/user.css" rel="stylesheet">
+
+
+
+</head>
+<body role="document">
+<div class="container-fluid">
+	<div class="row">
+		<div class="col-xs-6">
+			<p> <img src="boxdim.png"></p>
+		</div>
+		<div class="col-xs-6">
+			<div class="panel panel-default">
+				<div class="panel-heading">Geometry Options</div>
+				<div class="panel-body">
+					<div class="form-horizontal" role="form">
+						<div class="form-group">
+							<label for="WidthField" class="col-xs-5 control-label">Width:</label>
+							<div class="col-xs-7">
+								<input type="email" class="form-control" id="WidthField" placeholder="Width of Box">
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="DepthField" class="col-xs-5 control-label">Depth:</label>
+							<div class="col-xs-7">
+								<input type="email" class="form-control" id="DepthField" placeholder="Depth of Box">
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="HeightField" class="col-xs-5 control-label">Height:</label>
+							<div class="col-xs-7">
+								<input type="email" class="form-control" id="HeightField" placeholder="Height of Box">
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="TabWidthField" class="col-xs-5 control-label">Joint Width:</label>
+							<div class="col-xs-7">
+								<input type="email" class="form-control" id="TabWidthField" placeholder="Width of Joint">
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="AllowanceField" class="col-xs-5 control-label">Allowance:</label>
+							<div class="col-xs-7">
+								<input type="email" class="form-control" id="AllowanceField" placeholder="Allowance">
+							</div>
+						</div>
+						<div class="form-group">
+						  <label class="col-xs-5 control-label" for="faces">Faces to Machine</label>
+						  <div class="col-xs-7">
+						  <div class="checkbox">
+						    <label for="faces-0">
+						      <input type="checkbox" name="faces" id="MakeLid" value="1" class="LuaButton">
+						      Make Lid
+						    </label>
+							</div>
+						  <div class="checkbox">
+						    <label for="faces-1">
+						      <input type="checkbox" name="faces" id="MakeBottom" value="2" class="LuaButton">
+						      Make Bottom
+						    </label>
+							</div>
+						  <div class="checkbox">
+						    <label for="faces-2">
+						      <input type="checkbox" name="faces" id="MakeSide1" value="" class="LuaButton">
+						      Make Side 1
+						    </label>
+							</div>
+						  <div class="checkbox">
+						    <label for="faces-3">
+						      <input type="checkbox" name="faces" id="MakeSide2" value="" class="LuaButton">
+						      Make Side 2
+						    </label>
+							</div>
+						  <div class="checkbox">
+						    <label for="faces-4">
+						      <input type="checkbox" name="faces" id="MakeEnd1" value="" class="LuaButton">
+						      Make End 1
+						    </label>
+							</div>
+						  <div class="checkbox">
+						    <label for="faces-5">
+						      <input type="checkbox" name="faces" id="MakeEnd2" value="" class="LuaButton">
+						      Make End 2
+						    </label>
+							</div>
+						  </div>
+						</div>
+
+						<div class="btn">
+						<input type="button" class="ToolPicker" name="ToolChooseButton" id="ToolChooseButton" value="Select Tool">
+						</div>
+						<p class="text-center text-muted" id="ToolNameField">No Tool Selected</p>
+					</div>
+				</div>
+			</div>
+		</div> <!-- end of col -->
+	</div><!-- end of first row -->
+
+	<div class="row"> <!-- Second row -->
+
+		<div class="col-xs-6">
+			<!-- joints -->
+			<div class="panel panel-default">
+				<div class="panel-heading">Joint Type</div>
+				<div class="panel-body">
+					<div class="row">
+						<div class="col-xs-12">
+							<div class="radio">
+								<label>
+									<input type="radio" class="LuaButton" name="TabTypeRadio" id="TabTypeRadio1"> Square Tabs<img class="pull-right" src="tabs.png">
+								</label>
+							</div>
+						</div>
+					</div>
+
+					<div class="row">
+						<div class="col-xs-12">
+							<div class="radio">
+								<label>
+									<input type="radio" class="LuaButton" name="TabTypeRadio" id="TabTypeRadio2">Dovetails<img class="pull-right" src="dovetails.png">
+								</label>
+							</div>
+						</div>
+					</div>
+
+				</div>
+			</div>
+		</div>
+
+		<div class="col-xs-6">
+
+			<!-- Lid -->
+			<div class="panel panel-default">
+				<div class="panel-heading">Lid Type</div>
+				<div class="panel-body">
+					<div class="row">
+						<div class="col-xs-12">
+							<div class="radio">
+								<label>
+									<input type="radio" class="LuaButton" name="LidTypeRadio" id="LidTypeRadio1"> Flat Lid<img class="pull-right" src="flatlid.png">
+								</label>
+							</div>
+						</div>
+					</div>
+
+					<div class="row">
+						<div class="col-xs-12">
+							<div class="radio">
+								<label>
+									<input type="radio" class="LuaButton" name="LidTypeRadio" id="LidTypeRadio2">Tabbed Lid<img class="pull-right" src="tabbedlid.png">
+								</label>
+							</div>
+						</div>
+					</div>
+
+				</div>
+			</div>
+		</div>
+
+	</div>
+	<div class="row">
+		<div class="col-xs-6">
+				<button type="button" class="btn btn-default btn-block" id="ButtonOK">OK</button>
+		</div>
+		<div class="col-xs-6">
+				<button type="button" class="btn btn-default btn-block" id="ButtonCancel">Cancel</button>
+		</div>
+	</div>
+</div>
+</body>
+</html>
+

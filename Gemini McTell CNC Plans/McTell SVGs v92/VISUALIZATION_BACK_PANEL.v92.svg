@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="44.0000in" 
+     height="44.0000in" 
+     viewBox="0 0 44.0000 44.0000">
+  <title>VISUALIZATION_BACK_PANEL.v92</title>
+  <g id="VISUALIZATION_BACK_PANEL.v92" data-name="VISUALIZATION_BACK_PANEL.v92">
+  <path d="M 2.0000 2.0000 L 42.0000 2.0000 L 42.0000 42.0000 L 2.0000 42.0000 Z" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+  <rect x="2.6063" y="2.6063" width="38.7874" height="38.7874" fill="none" stroke="#e09500" stroke-width="0.01"/>
+  <rect x="12.0000" y="27.7016" width="20.0000" height="13.2000" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+  <rect x="11.7087" y="27.4102" width="20.5827" height="13.7827" fill="none" stroke="#e09500" stroke-width="0.01"/>
+  </g>
+</svg>

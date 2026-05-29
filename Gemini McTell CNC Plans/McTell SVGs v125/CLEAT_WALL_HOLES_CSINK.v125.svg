@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="13.6000in" 
+     height="8.0000in" 
+     viewBox="0 0 13.6000 8.0000">
+  <title>CLEAT_WALL_HOLES_CSINK</title>
+  <g id="CLEAT_WALL_HOLES_CSINK" data-name="CLEAT_WALL_HOLES_CSINK">
+  <circle cx="6.8000" cy="3.2500" r="0.1875" fill="none" stroke="#8fea00" stroke-width="0.001"/>
+  <circle cx="6.8000" cy="4.7500" r="0.1875" fill="none" stroke="#8fea00" stroke-width="0.001"/>
+  <circle cx="8.8000" cy="3.2500" r="0.1875" fill="none" stroke="#8fea00" stroke-width="0.001"/>
+  <circle cx="8.8000" cy="4.7500" r="0.1875" fill="none" stroke="#8fea00" stroke-width="0.001"/>
+  <circle cx="4.8000" cy="3.2500" r="0.1875" fill="none" stroke="#8fea00" stroke-width="0.001"/>
+  <circle cx="4.8000" cy="4.7500" r="0.1875" fill="none" stroke="#8fea00" stroke-width="0.001"/>
+  </g>
+</svg>

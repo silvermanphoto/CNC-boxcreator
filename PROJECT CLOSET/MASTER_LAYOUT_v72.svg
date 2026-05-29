@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="CNC_BOX" xmlns="http://www.w3.org/2000/svg" width="48in" height="26in" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 3456 1872">
+  <!-- Generator: Adobe Illustrator 29.7.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 8)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #d72229;
+      }
+
+      .st1 {
+        stroke: #e09500;
+      }
+
+      .st1, .st2, .st3, .st4, .st5 {
+        fill: none;
+        stroke-miterlimit: 288;
+      }
+
+      .st1, .st2, .st3, .st5 {
+        stroke-width: .7px;
+      }
+
+      .st2 {
+        stroke: red;
+      }
+
+      .st3 {
+        stroke: blue;
+      }
+
+      .st4 {
+        stroke: #5eff00;
+        stroke-width: 10px;
+      }
+
+      .st5 {
+        stroke: #af00af;
+      }
+    </style>
+    <symbol id="Arrow_7" viewBox="0 0 16.9922 94.3916">
+      <polygon class="st0" points="16.9922 69.0312 8.4639 94.3916 0 69.0312 5.0664 69.0312 5.0664 0 11.1836 0 11.1836 69.0312 16.9922 69.0312"/>
+    </symbol>
+  </defs>
+  <g id="CUTS">
+    <g id="CUTS_FRONT">
+      <g id="FRONT_BEZEL_PERIMETER">
+        <path class="st2" d="M234,119h900v900H234V119Z"/>
+      </g>
+    </g>
+    <g id="CUTS_BACK">
+      <g id="BACK_PANEL_PERIMETER">
+        <path class="st2" d="M1278,119h900v900h-900V119Z"/>
+      </g>
+    </g>
+    <g id="CUTS_TOP">
+      <g id="TOP_RAIL_PERIMETER">
+        <path class="st2" d="M2364.5,119h815v.4h41.8v43.3h-41.8v44.7h41.8v43.3h-41.8v44.7h41.8v43.3h-41.8v44.7h41.8v43.3h-41.8v44.7h41.8v43.3h-41.8v.4h-815v-.4h-41.8v-43.3h41.8v-44.7h-41.8v-43.3h41.8v-44.7h-41.8v-43.3h41.8v-44.7h-41.8v-43.3h41.8v-44.7h-41.8v-43.3h41.8v-.4h0Z"/>
+      </g>
+    </g>
+    <g id="CUTS_BOTTOM">
+      <g id="BOTTOM_RAIL_PERIMETER">
+        <path class="st2" d="M2364.5,659h815v.4h41.8v43.3h-41.8v44.7h41.8v43.3h-41.8v44.7h41.8v43.3h-41.8v44.7h41.8v43.3h-41.8v44.7h41.8v43.3h-41.8v.4h-815v-.4h-41.8v-43.3h41.8v-44.7h-41.8v-43.3h41.8v-44.7h-41.8v-43.3h41.8v-44.7h-41.8v-43.3h41.8v-44.7h-41.8v-43.3h41.8v-.4h0Z"/>
+      </g>
+    </g>
+    <g id="CUTS_LEFT">
+      <g id="LEFT_RAIL_PERIMETER">
+        <path class="st2" d="M2364.5,1199h815v44h42.5v44h-42.5v44h42.5v44h-42.5v44h42.5v44h-42.5v44h42.5v44h-42.5v44h-815v-44h-42.5v-44h42.5v-44h-42.5v-44h42.5v-44h-42.5v-44h42.5v-44h-42.5v-44h42.5v-44Z"/>
+      </g>
+    </g>
+    <g id="CUTS_RIGHT">
+      <g id="RIGHT_RAIL_PERIMETER">
+        <path class="st2" d="M1320.5,1199h815v44h42.5v44h-42.5v44h42.5v44h-42.5v44h42.5v44h-42.5v44h42.5v44h-42.5v44h-815v-44h-42.5v-44h42.5v-44h-42.5v-44h42.5v-44h-42.5v-44h42.5v-44h-42.5v-44h42.5v-44Z"/>
+      </g>
+    </g>
+  </g>
+  <g id="HOLES">
+    <g id="HOLES_BACK">
+      <g id="BACK_PANEL_HOLES">
+        <circle class="st3" cx="1300" cy="141" r="10.1"/>
+        <circle class="st3" cx="2156" cy="141" r="10.1001"/>
+        <circle class="st3" cx="1300" cy="997" r="10.1"/>
+        <circle class="st3" cx="2156" cy="997" r="10.1"/>
+        <circle class="st3" cx="1578" cy="141" r="10.1"/>
+        <circle class="st3" cx="1878" cy="141" r="10.1"/>
+        <circle class="st3" cx="1578" cy="997" r="10.1"/>
+        <circle class="st3" cx="1878" cy="997" r="10.1"/>
+        <circle class="st3" cx="1300" cy="419" r="10.1"/>
+        <circle class="st3" cx="1300" cy="719" r="10.1"/>
+        <circle class="st3" cx="2156" cy="419" r="10.1001"/>
+        <circle class="st3" cx="2156" cy="719" r="10.1"/>
+      </g>
+    </g>
+  </g>
+  <g id="RABBETS">
+    <g id="RABBETS_FRONT">
+      <g id="FRONT_BEZEL_RABBETS">
+        <rect class="st1" x="234" y="119" width="900" height="900"/>
+        <rect class="st1" x="277.2" y="162.2" width="813.4999" height="813.5"/>
+      </g>
+    </g>
+    <g id="RABBETS_BACK">
+      <g id="BACK_PANEL_RABBETS">
+        <rect class="st1" x="1278" y="119" width="900" height="900"/>
+        <rect class="st1" x="1321.2" y="162.2" width="813.5" height="813.5"/>
+      </g>
+    </g>
+  </g>
+  <g id="WINDOWS">
+    <g id="WINDOWS_FRONT">
+      <g id="FRONT_BEZEL_WINDOW">
+        <path class="st5" d="M396,281v576h576V281H396Z"/>
+      </g>
+    </g>
+  </g>
+  <rect id="ALIGNMENT_FRAME" class="st4" y="-1" width="3456" height="1872"/>
+  <use width="16.9922" height="94.3916" transform="translate(2361.5175 605.1158) scale(.5297)" xlink:href="#Arrow_7"/>
+  <use width="16.9922" height="94.3916" transform="translate(2366.0175 573.0871) rotate(-180) scale(.5297)" xlink:href="#Arrow_7"/>
+</svg>

@@ -1,0 +1,417 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="744.09448819"
+   height="1052.3622047"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.48.4 r9939"
+   sodipodi:docname="sprites.svg">
+  <defs
+     id="defs4">
+    <linearGradient
+       id="linearGradient5623">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="0"
+         id="stop5625" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:0;"
+         offset="1"
+         id="stop5627" />
+    </linearGradient>
+    <linearGradient
+       id="linearGradient5529">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:0;"
+         offset="0"
+         id="stop5531" />
+      <stop
+         id="stop5539"
+         offset="0.75324672"
+         style="stop-color:#ffffff;stop-opacity:0.648;" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="1"
+         id="stop5533" />
+    </linearGradient>
+    <filter
+       id="filter5401"
+       x="0"
+       y="0"
+       width="1"
+       height="1"
+       inkscape:menu-tooltip="Give lead pencil or chromolithography or engraving or other effects to images and material filled objects"
+       inkscape:menu="Image effects"
+       inkscape:label="Drawing"
+       color-interpolation-filters="sRGB">
+      <feGaussianBlur
+         id="feGaussianBlur5403"
+         stdDeviation="0.5"
+         result="result8" />
+      <feConvolveMatrix
+         id="feConvolveMatrix5405"
+         bias="0"
+         result="result0"
+         preserveAlpha="true"
+         targetY="1"
+         targetX="1"
+         divisor="1"
+         in="result8"
+         kernelMatrix="1 1 1 1 -8 1 1 1 1 "
+         order="3 3" />
+      <feColorMatrix
+         id="feColorMatrix5407"
+         values="0 -6 0 0 1 0 -6 0 0 1 0 -6 0 0 1 0 0 0 1 0 "
+         result="result3" />
+      <feComposite
+         id="feComposite5409"
+         in2="result3"
+         k3="0.3"
+         k1="1"
+         operator="arithmetic"
+         in="SourceGraphic"
+         result="fbSourceGraphic" />
+      <feGaussianBlur
+         id="feGaussianBlur5411"
+         stdDeviation="0.01"
+         in="fbSourceGraphic"
+         result="result7" />
+      <feBlend
+         id="feBlend5413"
+         in2="result7"
+         in="result7"
+         mode="multiply"
+         result="result9" />
+      <feComposite
+         id="feComposite5415"
+         in2="SourceGraphic"
+         operator="in" />
+    </filter>
+    <filter
+       id="filter5417"
+       x="0"
+       y="0"
+       width="1"
+       height="1"
+       inkscape:menu-tooltip="Give lead pencil or chromolithography or engraving or other effects to images and material filled objects"
+       inkscape:menu="Image effects"
+       inkscape:label="Drawing"
+       color-interpolation-filters="sRGB">
+      <feGaussianBlur
+         id="feGaussianBlur5419"
+         stdDeviation="0.5"
+         result="result8" />
+      <feConvolveMatrix
+         id="feConvolveMatrix5421"
+         bias="0"
+         result="result0"
+         preserveAlpha="true"
+         targetY="1"
+         targetX="1"
+         divisor="1"
+         in="result8"
+         kernelMatrix="1 1 1 1 -8 1 1 1 1 "
+         order="3 3" />
+      <feColorMatrix
+         id="feColorMatrix5423"
+         values="0 -6 0 0 1 0 -6 0 0 1 0 -6 0 0 1 0 0 0 1 0 "
+         result="result3" />
+      <feComposite
+         id="feComposite5425"
+         in2="result3"
+         k3="0.3"
+         k1="1"
+         operator="arithmetic"
+         in="SourceGraphic"
+         result="fbSourceGraphic" />
+      <feGaussianBlur
+         id="feGaussianBlur5427"
+         stdDeviation="0.01"
+         in="fbSourceGraphic"
+         result="result7" />
+      <feBlend
+         id="feBlend5429"
+         in2="result7"
+         in="result7"
+         mode="multiply"
+         result="result9" />
+      <feComposite
+         id="feComposite5431"
+         in2="SourceGraphic"
+         operator="in" />
+    </filter>
+    <radialGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient5529"
+       id="radialGradient5537"
+       cx="160"
+       cy="122.36218"
+       fx="160"
+       fy="122.36218"
+       r="110"
+       gradientTransform="matrix(1,0,0,0.76308259,0,19.050647)"
+       gradientUnits="userSpaceOnUse" />
+    <radialGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient5529-3"
+       id="radialGradient5537-2"
+       cx="160"
+       cy="122.36218"
+       fx="160"
+       fy="122.36218"
+       r="110"
+       gradientTransform="matrix(1,0,0,0.76308259,0,19.050647)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       id="linearGradient5529-3">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:0;"
+         offset="0"
+         id="stop5531-1" />
+      <stop
+         id="stop5539-6"
+         offset="0.75324672"
+         style="stop-color:#ffffff;stop-opacity:0.648;" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="1"
+         id="stop5533-8" />
+    </linearGradient>
+    <radialGradient
+       r="110"
+       fy="122.36218"
+       fx="160"
+       cy="122.36218"
+       cx="160"
+       gradientTransform="matrix(1,0,0,0.76308259,278.60415,19.355193)"
+       gradientUnits="userSpaceOnUse"
+       id="radialGradient5559"
+       xlink:href="#linearGradient5529-3"
+       inkscape:collect="always" />
+    <radialGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient5529-7"
+       id="radialGradient5537-27"
+       cx="160"
+       cy="122.36218"
+       fx="160"
+       fy="122.36218"
+       r="110"
+       gradientTransform="matrix(1,0,0,0.76308259,0,19.050647)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       id="linearGradient5529-7">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:0;"
+         offset="0"
+         id="stop5531-12" />
+      <stop
+         id="stop5539-60"
+         offset="0.75324672"
+         style="stop-color:#ffffff;stop-opacity:0.648;" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="1"
+         id="stop5533-4" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient5623"
+       id="linearGradient5629"
+       x1="180"
+       y1="332.36218"
+       x2="180"
+       y2="292.36218"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(0.89440994,0,0,1,12.42236,-6)" />
+    <linearGradient
+       id="linearGradient5623-6">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="0"
+         id="stop5625-0" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:0;"
+         offset="1"
+         id="stop5627-3" />
+    </linearGradient>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient5623-6"
+       id="linearGradient5681"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="matrix(1.1304348,0,0,1.0952381,262.04969,-28.129729)"
+       x1="180"
+       y1="332.36218"
+       x2="180"
+       y2="292.36218" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.7"
+     inkscape:cx="361.28746"
+     inkscape:cy="761.97279"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="true"
+     inkscape:window-width="1106"
+     inkscape:window-height="910"
+     inkscape:window-x="2603"
+     inkscape:window-y="135"
+     inkscape:window-maximized="0">
+    <inkscape:grid
+       type="xygrid"
+       id="grid2985" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <path
+       style="fill:#afb3e3;fill-opacity:0.55319148;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="m 340,352.36218 0,-80 40,0 0,-20 20,0 0,20 20,0 0,-20 20,0 0,20 20,0 0,-20 20,0 0,20 20,0 0,-20 20,0 0,20 40,0 0,80 z"
+       id="path5667"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="ccccccccccccccccccccc"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\tabbedlid.png"
+       inkscape:export-xdpi="40.723984"
+       inkscape:export-ydpi="40.723984" />
+    <path
+       style="fill:#afb3e3;fill-opacity:0.78991598;stroke:#000000;stroke-width:0.69999999000000002;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;filter:url(#filter5417)"
+       d="m 60,133.07647 39.999999,0 0,-40.000002 40.000001,0 0,40.000002 40,0 0,-40.000002 40,0 0,40.000002 40,0 0,60 -200,0 z"
+       id="path2987-1"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\tabs.png"
+       inkscape:export-xdpi="44.845844"
+       inkscape:export-ydpi="44.845844" />
+    <rect
+       style="fill:url(#radialGradient5537);fill-opacity:1;stroke:none"
+       id="rect5527"
+       width="220"
+       height="167.87817"
+       x="50"
+       y="28.484013" />
+    <path
+       style="fill:#afb3e3;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;fill-opacity:0.78991598"
+       d="m 350,132.36218 30,0 -10,-39.999997 50,0 -10,39.999997 50,0 -10,-39.999997 50,0 -10,39.999997 30,0 20,0 0,60 -190,0 0,-60"
+       id="path5541"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\dovetails.png"
+       inkscape:export-xdpi="47.120419"
+       inkscape:export-ydpi="47.120419" />
+    <rect
+       style="fill:url(#radialGradient5559);fill-opacity:1;stroke:none"
+       id="rect5527-8"
+       width="220"
+       height="167.87817"
+       x="328.60416"
+       y="28.788559" />
+    <rect
+       style="fill:#afb3e3;fill-opacity:0.62978721;stroke:#000000;stroke-width:1.20000000000000000;stroke-linecap:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       id="rect5580"
+       width="200"
+       height="20"
+       x="60"
+       y="252.36218"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\flatlid.png"
+       inkscape:export-xdpi="43.75"
+       inkscape:export-ydpi="43.75" />
+    <rect
+       style="fill:#afb3e3;fill-opacity:0.64255315;stroke:#000000;stroke-width:0.10000000000000001;stroke-linecap:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0"
+       id="rect5582"
+       width="200"
+       height="60"
+       x="60"
+       y="272.36218"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\flatlid.png"
+       inkscape:export-xdpi="43.75"
+       inkscape:export-ydpi="43.75" />
+    <rect
+       style="fill:url(#linearGradient5629);fill-opacity:1;stroke:none"
+       id="rect5621"
+       width="205.71429"
+       height="60"
+       x="57.142857"
+       y="286.36218"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\flatlid.png"
+       inkscape:export-xdpi="43.75"
+       inkscape:export-ydpi="43.75" />
+    <rect
+       style="fill:url(#linearGradient5681);fill-opacity:1;stroke:none"
+       id="rect5621-2"
+       width="260"
+       height="65.714287"
+       x="318.57141"
+       y="292.07648"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\tabbedlid.png"
+       inkscape:export-xdpi="39.130436"
+       inkscape:export-ydpi="39.130436" />
+    <path
+       style="fill:#9297c0;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;fill-opacity:0.78823531"
+       d="m 340,252.36218 0,20 40,0 0,-20 -40,0"
+       id="path5669"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\tabbedlid.png"
+       inkscape:export-xdpi="40.723984"
+       inkscape:export-ydpi="40.723984" />
+    <path
+       style="fill:#9297c0;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;fill-opacity:0.78823531"
+       d="m 400,252.36218 20,0 0,20 -20,0 z"
+       id="path5671"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\tabbedlid.png"
+       inkscape:export-xdpi="40.723984"
+       inkscape:export-ydpi="40.723984" />
+    <path
+       style="fill:#9297c0;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;fill-opacity:0.78823531"
+       d="m 440,252.36218 20,0 0,20 -20,0 z"
+       id="path5673"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\tabbedlid.png"
+       inkscape:export-xdpi="40.723984"
+       inkscape:export-ydpi="40.723984" />
+    <path
+       style="fill:#9297c0;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;fill-opacity:0.78823531"
+       d="m 480,252.36218 20,0 0,20 -20,0 z"
+       id="path5677"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\tabbedlid.png"
+       inkscape:export-xdpi="40.723984"
+       inkscape:export-ydpi="40.723984" />
+    <path
+       style="fill:#9297c0;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;fill-opacity:0.78823531"
+       d="m 520,252.36218 40,0 0,20 -40,0 z"
+       id="path5679"
+       inkscape:connector-curvature="0"
+       inkscape:export-filename="C:\Dev\VectricGadgets\BoxCreator\tabbedlid.png"
+       inkscape:export-xdpi="40.723984"
+       inkscape:export-ydpi="40.723984" />
+  </g>
+</svg>

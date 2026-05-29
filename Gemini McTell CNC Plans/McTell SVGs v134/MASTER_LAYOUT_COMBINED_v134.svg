@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="48.0000in" height="48.0000in" viewBox="0 0 48.0000 48.0000">
+  <title>MASTER_LAYOUT_COMBINED_v134</title>
+  <g id="FRONT" data-name="FRONT">
+    <path d="M 2.0000 2.0000 L 16.0000 2.0000 L 16.0000 16.0000 L 2.0000 16.0000 L 2.0000 2.0000 Z" fill="none" stroke="#ff00ff" stroke-width="0.001" transform="translate(0.5000, 0.5000) translate(-2.0, -2.0)" id="FRONT_OUTSIDE_CUTS" data-name="OUTSIDE CUTS" />
+    <path d="M 2.0 2.0 h 14.0 v 14.0 h -14.0 z M 2.5984 2.5984 h 12.8032 v 12.8032 h -12.8032 z" fill="none" stroke="#00ff00" stroke-width="0.001" transform="translate(0.5000, 0.5000) translate(-2.0, -2.0)" id="FRONT_RABBET" data-name="RABBET" />
+    <path d="M 2.5000 2.5000 L 2.5000 15.5000 L 15.5000 15.5000 L 15.5000 2.5000 Z" fill="none" stroke="#ff0000" stroke-width="0.001" transform="translate(0.5000, 0.5000) translate(-2.0, -2.0)" id="FRONT_INSIDE_WINDOW" data-name="INSIDE WINDOW" />
+  </g>
+  <g id="BACK" data-name="BACK">
+    <path d="M 2.0000 2.0000 L 16.0000 2.0000 L 16.0000 16.0000 L 2.0000 16.0000 Z" fill="none" stroke="#ff00ff" stroke-width="0.001" transform="translate(15.0000, 0.5000) translate(-2.0, -2.0)" id="BACK_OUTSIDE_CUTS" data-name="OUTSIDE CUTS" />
+    <path d="M 2.0 2.0 h 14.0 v 14.0 h -14.0 z M 2.5984 2.5984 h 12.8032 v 12.8032 h -12.8032 z" fill="none" stroke="#00ff00" stroke-width="0.001" transform="translate(15.0000, 0.5000) translate(-2.0, -2.0)" id="BACK_RABBET" data-name="RABBET" />
+  </g>
+  <g id="LEFT" data-name="LEFT">
+    <path d="M 2.5984 2.0000 L 15.4016 2.0000 L 15.4016 2.5000 L 16.0000 2.5000 L 16.0000 3.0000 L 16.0000 3.0000 L 15.4016 3.0000 L 15.4016 3.5000 L 16.0000 3.5000 L 16.0000 4.0000 L 16.0000 4.0000 L 15.4016 4.0000 L 15.4016 4.5000 L 2.5984 4.5000 L 2.5984 4.0000 L 2.0000 4.0000 L 2.0000 3.5000 L 2.0000 3.5000 L 2.5984 3.5000 L 2.5984 3.0000 L 2.0000 3.0000 L 2.0000 2.5000 L 2.0000 2.5000 L 2.5984 2.5000 L 2.5984 2.0000 Z" fill="none" stroke="#ff00ff" stroke-width="0.001" transform="translate(29.5000, 0.5000) translate(-2.0, -2.0)" id="LEFT_OUTSIDE_CUTS" data-name="OUTSIDE CUTS" />
+  </g>
+  <g id="RIGHT" data-name="RIGHT">
+    <path d="M 2.5984 2.0000 L 15.4016 2.0000 L 15.4016 2.5000 L 16.0000 2.5000 L 16.0000 3.0000 L 16.0000 3.0000 L 15.4016 3.0000 L 15.4016 3.5000 L 16.0000 3.5000 L 16.0000 4.0000 L 16.0000 4.0000 L 15.4016 4.0000 L 15.4016 4.5000 L 2.5984 4.5000 L 2.5984 4.0000 L 2.0000 4.0000 L 2.0000 3.5000 L 2.0000 3.5000 L 2.5984 3.5000 L 2.5984 3.0000 L 2.0000 3.0000 L 2.0000 2.5000 L 2.0000 2.5000 L 2.5984 2.5000 L 2.5984 2.0000 Z" fill="none" stroke="#ff00ff" stroke-width="0.001" transform="translate(46.5000, 0.5000) rotate(90) translate(-2.0, -2.0)" id="RIGHT_OUTSIDE_CUTS" data-name="OUTSIDE CUTS" />
+  </g>
+  <g id="TOP" data-name="TOP">
+    <path d="M 2.0000 2.0000 L 14.8032 2.0000 L 14.8032 2.0000 L 15.4016 2.0000 L 15.4016 2.5000 L 14.8032 2.5000 L 14.8032 2.5000 L 14.8032 3.0000 L 14.8032 3.0000 L 15.4016 3.0000 L 15.4016 3.5000 L 14.8032 3.5000 L 14.8032 3.5000 L 14.8032 4.0000 L 14.8032 4.0000 L 15.4016 4.0000 L 15.4016 4.5000 L 14.8032 4.5000 L 14.8032 4.5000 L 2.0000 4.5000 L 2.0000 4.5000 L 1.4016 4.5000 L 1.4016 4.0000 L 2.0000 4.0000 L 2.0000 4.0000 L 2.0000 3.5000 L 2.0000 3.5000 L 1.4016 3.5000 L 1.4016 3.0000 L 2.0000 3.0000 L 2.0000 3.0000 L 2.0000 2.5000 L 2.0000 2.5000 L 1.4016 2.5000 L 1.4016 2.0000 L 2.0000 2.0000 L 2.0000 2.0000 Z" fill="none" stroke="#ff00ff" stroke-width="0.001" transform="translate(0.5000, 15.0000) translate(-2.0, -2.0)" id="TOP_OUTSIDE_CUTS" data-name="OUTSIDE CUTS" />
+  </g>
+  <g id="BOTTOM" data-name="BOTTOM">
+    <path d="M 2.0000 2.0000 L 14.8032 2.0000 L 14.8032 2.0000 L 15.4016 2.0000 L 15.4016 2.5000 L 14.8032 2.5000 L 14.8032 2.5000 L 14.8032 3.0000 L 14.8032 3.0000 L 15.4016 3.0000 L 15.4016 3.5000 L 14.8032 3.5000 L 14.8032 3.5000 L 14.8032 4.0000 L 14.8032 4.0000 L 15.4016 4.0000 L 15.4016 4.5000 L 14.8032 4.5000 L 14.8032 4.5000 L 2.0000 4.5000 L 2.0000 4.5000 L 1.4016 4.5000 L 1.4016 4.0000 L 2.0000 4.0000 L 2.0000 4.0000 L 2.0000 3.5000 L 2.0000 3.5000 L 1.4016 3.5000 L 1.4016 3.0000 L 2.0000 3.0000 L 2.0000 3.0000 L 2.0000 2.5000 L 2.0000 2.5000 L 1.4016 2.5000 L 1.4016 2.0000 L 2.0000 2.0000 L 2.0000 2.0000 Z" fill="none" stroke="#ff00ff" stroke-width="0.001" transform="translate(13.8032, 15.0000) translate(-2.0, -2.0)" id="BOTTOM_OUTSIDE_CUTS" data-name="OUTSIDE CUTS" />
+  </g>
+</svg>

@@ -1,0 +1,14 @@
+.control-label-left
+{
+	margin-bottom: 0;
+    vertical-align: middle;
+    padding-top: 7px;
+	text-align: left !important;
+}
+
+.container-no-scroll 
+{
+	padding: 0 15px; 
+	margin-left: 0px; 
+	margin-right: 0px
+}

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" width="42.8032in" height="8.25in" version="1.1" viewBox="0 0 3081.8303 594">
+  <!-- Generator: Adobe Illustrator 29.7.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 8)  -->
+  <defs>
+    <style>
+      .st0 {
+        stroke: #e09500;
+      }
+
+      .st0, .st1, .st2 {
+        fill: none;
+        stroke-miterlimit: 288;
+      }
+
+      .st1 {
+        stroke: blue;
+      }
+
+      .st2 {
+        stroke: red;
+      }
+    </style>
+  </defs>
+  <g id="BOTTOM_RAIL_HATCH_CUT">
+    <rect class="st2" x="1309.7449" y="189.1152" width="288" height="215.7768"/>
+    <rect class="st0" x="1266.5448" y="145.9152" width="374.4001" height="302.1768"/>
+    <circle class="st1" cx="1294.6752" cy="174.0384" r="10.1232"/>
+    <circle class="st1" cx="1612.8215" cy="174.0384" r="10.1232"/>
+    <circle class="st1" cx="1294.6752" cy="419.9616" r="10.1232"/>
+    <circle class="st1" cx="1612.8215" cy="419.9616" r="10.1232"/>
+  </g>
+</svg>

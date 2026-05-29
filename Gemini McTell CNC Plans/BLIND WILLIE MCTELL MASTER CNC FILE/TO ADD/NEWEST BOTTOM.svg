@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" width="40.0556in" height="4.3056in" viewBox="0 0 2884 310.0002">
+  <defs>
+    <style>
+      .cls-1 {
+        stroke: #f0f;
+        stroke-width: 4px;
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-4 {
+        fill: none;
+        stroke-miterlimit: 288;
+      }
+
+      .cls-2 {
+        stroke: #e09500;
+      }
+
+      .cls-3 {
+        stroke: blue;
+      }
+
+      .cls-4 {
+        stroke: red;
+      }
+    </style>
+  </defs>
+  <g id="BOTTOM">
+    <g id="HATCH_CUT_-_goes_on_rail" data-name="HATCH CUT - goes on rail">
+      <rect class="cls-4" x="1209.3843" y="78.2429" width="204.8976" height="153.5144"/>
+      <rect id="HATCH_ITSELF" data-name="HATCH ITSELF" class="cls-2" x="1162.8766" y="34.7779" width="297.9131" height="240.4445"/>
+      <circle class="cls-3" cx="1191.7634" cy="69.035" r="10.1232"/>
+      <circle class="cls-3" cx="1431.9098" cy="69.0349" r="10.1232"/>
+      <circle class="cls-3" cx="1191.7635" cy="240.9582" r="10.1232"/>
+      <circle class="cls-3" cx="1431.9099" cy="240.9581" r="10.1232"/>
+    </g>
+    <path id="BOTTOM_OUTSIDE_CUTS" data-name="BOTTOM OUTSIDE CUTS" class="cls-1" d="M45.0845,2h2836.9155v43.4304h-43.085v44.28h43.085v43.1497h-43.085v44.28h43.085v43.1497h-43.085v44.28h43.085v43.4304H2v-43.4304h43.0847v-44.28H2v-43.1497h43.0847v-44.28H2v-43.1497h43.0847v-44.28H2V2h43.0847-.0002Z"/>
+  </g>
+</svg>

@@ -1,0 +1,15 @@
+# Antigravity Customizations & Rules
+
+This file allows you to define global rules, coding styles, and a persona for the assistant.
+
+## User Persona
+# Describe your role and preferences here.
+# Example: "I am a senior Python developer who prefers functional programming styles."
+
+## Global Rules
+# 1. Concise Responses: Keep explanations brief unless asked otherwise.
+# 2. Code Style: Follow PEP 8 for Python.
+# 3. No Yapping: Do not repeat obvious information.
+
+## Project Specifics
+# Add any project-specific context or constraints here.

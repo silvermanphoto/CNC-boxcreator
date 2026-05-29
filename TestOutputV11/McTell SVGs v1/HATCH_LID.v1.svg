@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="24.5827in" 
+     height="17.7827in" 
+     viewBox="0 0 24.5827 17.7827">
+  <title>HATCH_LID</title>
+  <g id="HATCH LID">
+  <rect x="2.0000" y="2.0000" width="20.5827" height="13.7827" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+  <rect x="2.6400" y="2.6400" width="19.3027" height="12.5027" fill="none" stroke="#e09500" stroke-width="0.01"/>
+  <circle cx="2.3200" cy="2.3200" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+  <circle cx="22.2627" cy="2.3200" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+  <circle cx="2.3200" cy="15.4627" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+  <circle cx="22.2627" cy="15.4627" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+  </g>
+</svg>

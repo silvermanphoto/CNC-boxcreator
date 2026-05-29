@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="96.0000in" height="96.0000in" viewBox="0 0 96.0000 96.0000">
+  <title>MASTER_LAYOUT_COMBINED_v104</title>
+  <rect x="0.0000" y="0" width="48.0000" height="96.0000" fill="none" stroke="#cccccc" stroke-width="0.05" />
+<text x="24.0000" y="-1.0000" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="150" fill="#000000" text-anchor="middle">Sheet 1 (48.0x96.0)</text>
+    <path transform="translate(0.5000, 0.5000) translate(-2.0, -2.0)" d="M 2.0000 2.0000 L 42.0000 2.0000 L 42.0000 42.0000 L 2.0000 42.0000 L 2.0000 2.0000 Z" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+    <path transform="translate(0.5000, 0.5000) translate(-2.0, -2.0)" d="M 2.8484 2.8484 L 2.8484 41.1516 L 41.1516 41.1516 L 41.1516 2.8484 Z" fill="none" stroke="#af00af" stroke-width="0.01"/>
+    <rect transform="translate(0.5000, 0.5000) translate(-2.0, -2.0)" x="2.0000" y="2.0000" width="40.0000" height="40.0000" fill="none" stroke="#e09500" stroke-width="0.01"/>
+    <rect transform="translate(0.5000, 0.5000) translate(-2.0, -2.0)" x="2.6063" y="2.6063" width="38.7875" height="38.7875" fill="none" stroke="#e09500" stroke-width="0.01"/>
+<text x="20.5000" y="20.0000" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="80" fill="#000000" text-anchor="middle">FRONT</text>
+<text x="20.5000" y="22.0694" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">FRONT_BEZEL_PERIMETER</text>
+<text x="20.5000" y="24.2083" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Outside)</text>
+<text x="20.5000" y="26.3472" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">FRONT_BEZEL_RABBETS</text>
+<text x="20.5000" y="28.4861" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> POCKET</text>
+<text x="20.5000" y="30.6250" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">FRONT_BEZEL_WINDOW</text>
+<text x="20.5000" y="32.7639" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Inside)</text>
+    <path transform="translate(0.5000, 41.0000) translate(-2.0, -2.0)" d="M 2.0000 2.0000 L 42.0000 2.0000 L 42.0000 42.0000 L 2.0000 42.0000 Z" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+    <rect transform="translate(0.5000, 41.0000) translate(-2.0, -2.0)" x="2.0000" y="2.0000" width="40.0000" height="40.0000" fill="none" stroke="#e09500" stroke-width="0.01"/>
+    <rect transform="translate(0.5000, 41.0000) translate(-2.0, -2.0)" x="2.6063" y="2.6063" width="38.7875" height="38.7875" fill="none" stroke="#e09500" stroke-width="0.01"/>
+    <circle transform="translate(0.5000, 41.0000) translate(-2.0, -2.0)" cx="7.6000" cy="15.3333" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+    <circle transform="translate(0.5000, 41.0000) translate(-2.0, -2.0)" cx="16.5600" cy="15.3333" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+    <circle transform="translate(0.5000, 41.0000) translate(-2.0, -2.0)" cx="27.1200" cy="15.3333" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+    <circle transform="translate(0.5000, 41.0000) translate(-2.0, -2.0)" cx="36.4000" cy="15.3333" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+<text x="20.5000" y="60.5000" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="80" fill="#000000" text-anchor="middle">BACK</text>
+<text x="20.5000" y="62.5694" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">BACK_PANEL_HOLES_THROUGH</text>
+<text x="20.5000" y="64.7083" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> HOLES (Inside)</text>
+<text x="20.5000" y="66.8472" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">BACK_PANEL_PERIMETER</text>
+<text x="20.5000" y="68.9861" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Outside)</text>
+<text x="20.5000" y="71.1250" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">BACK_PANEL_RABBETS</text>
+<text x="20.5000" y="73.2639" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> POCKET</text>
+    <path transform="translate(45.2500, 0.5000) rotate(90) translate(-2.0, -2.0)" d="M 2.5984 2.0000 L 41.4016 2.0000 L 41.4016 2.6071 L 42.0000 2.6071 L 42.0000 3.2143 L 42.0000 3.2143 L 41.4016 3.2143 L 41.4016 3.8214 L 42.0000 3.8214 L 42.0000 4.4286 L 42.0000 4.4286 L 41.4016 4.4286 L 41.4016 5.0357 L 42.0000 5.0357 L 42.0000 5.6429 L 42.0000 5.6429 L 41.4016 5.6429 L 41.4016 6.2500 L 2.5984 6.2500 L 2.5984 5.6429 L 2.0000 5.6429 L 2.0000 5.0357 L 2.0000 5.0357 L 2.5984 5.0357 L 2.5984 4.4286 L 2.0000 4.4286 L 2.0000 3.8214 L 2.0000 3.8214 L 2.5984 3.8214 L 2.5984 3.2143 L 2.0000 3.2143 L 2.0000 2.6071 L 2.0000 2.6071 L 2.5984 2.6071 L 2.5984 2.0000 Z" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+<text x="43.1250" y="20.0000" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="80" fill="#000000" text-anchor="middle">LEFT</text>
+<text x="43.1250" y="22.0694" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">LEFT_RAIL_PERIMETER</text>
+<text x="43.1250" y="24.2083" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Outside)</text>
+    <path transform="translate(45.2500, 41.0000) rotate(90) translate(-2.0, -2.0)" d="M 2.5984 2.0000 L 41.4016 2.0000 L 41.4016 2.6071 L 42.0000 2.6071 L 42.0000 3.2143 L 42.0000 3.2143 L 41.4016 3.2143 L 41.4016 3.8214 L 42.0000 3.8214 L 42.0000 4.4286 L 42.0000 4.4286 L 41.4016 4.4286 L 41.4016 5.0357 L 42.0000 5.0357 L 42.0000 5.6429 L 42.0000 5.6429 L 41.4016 5.6429 L 41.4016 6.2500 L 2.5984 6.2500 L 2.5984 5.6429 L 2.0000 5.6429 L 2.0000 5.0357 L 2.0000 5.0357 L 2.5984 5.0357 L 2.5984 4.4286 L 2.0000 4.4286 L 2.0000 3.8214 L 2.0000 3.8214 L 2.5984 3.8214 L 2.5984 3.2143 L 2.0000 3.2143 L 2.0000 2.6071 L 2.0000 2.6071 L 2.5984 2.6071 L 2.5984 2.0000 Z" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+<text x="43.1250" y="60.5000" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="80" fill="#000000" text-anchor="middle">RIGHT</text>
+<text x="43.1250" y="62.5694" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">RIGHT_RAIL_PERIMETER</text>
+<text x="43.1250" y="64.7083" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Outside)</text>
+    <path transform="translate(0.5000, 81.5000) translate(-2.0, -2.0)" d="M 2.0000 2.0000 L 40.8032 2.0000 L 40.8032 2.0000 L 41.3937 2.0000 L 41.3937 2.6032 L 40.8032 2.6032 L 40.8032 2.6071 L 40.8032 3.2143 L 40.8032 3.2182 L 41.3937 3.2182 L 41.3937 3.8175 L 40.8032 3.8175 L 40.8032 3.8214 L 40.8032 4.4286 L 40.8032 4.4325 L 41.3937 4.4325 L 41.3937 5.0318 L 40.8032 5.0318 L 40.8032 5.0357 L 40.8032 5.6429 L 40.8032 5.6468 L 41.3937 5.6468 L 41.3937 6.2500 L 40.8032 6.2500 L 40.8032 6.2500 L 2.0000 6.2500 L 2.0000 6.2500 L 1.4095 6.2500 L 1.4095 5.6468 L 2.0000 5.6468 L 2.0000 5.6429 L 2.0000 5.0357 L 2.0000 5.0318 L 1.4095 5.0318 L 1.4095 4.4325 L 2.0000 4.4325 L 2.0000 4.4286 L 2.0000 3.8214 L 2.0000 3.8175 L 1.4095 3.8175 L 1.4095 3.2182 L 2.0000 3.2182 L 2.0000 3.2143 L 2.0000 2.6071 L 2.0000 2.6032 L 1.4095 2.6032 L 1.4095 2.0000 L 2.0000 2.0000 L 2.0000 2.0000 Z" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+<text x="19.9016" y="83.1250" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="80" fill="#000000" text-anchor="middle">TOP</text>
+<text x="19.9016" y="85.1944" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">TOP_RAIL_PERIMETER</text>
+<text x="19.9016" y="87.3333" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Outside)</text>
+    <path transform="translate(0.5000, 86.2500) translate(-2.0, -2.0)" d="M 2.0000 2.0000 L 40.8032 2.0000 L 40.8032 2.0000 L 41.3937 2.0000 L 41.3937 2.6032 L 40.8032 2.6032 L 40.8032 2.6071 L 40.8032 3.2143 L 40.8032 3.2182 L 41.3937 3.2182 L 41.3937 3.8175 L 40.8032 3.8175 L 40.8032 3.8214 L 40.8032 4.4286 L 40.8032 4.4325 L 41.3937 4.4325 L 41.3937 5.0318 L 40.8032 5.0318 L 40.8032 5.0357 L 40.8032 5.6429 L 40.8032 5.6468 L 41.3937 5.6468 L 41.3937 6.2500 L 40.8032 6.2500 L 40.8032 6.2500 L 2.0000 6.2500 L 2.0000 6.2500 L 1.4095 6.2500 L 1.4095 5.6468 L 2.0000 5.6468 L 2.0000 5.6429 L 2.0000 5.0357 L 2.0000 5.0318 L 1.4095 5.0318 L 1.4095 4.4325 L 2.0000 4.4325 L 2.0000 4.4286 L 2.0000 3.8214 L 2.0000 3.8175 L 1.4095 3.8175 L 1.4095 3.2182 L 2.0000 3.2182 L 2.0000 3.2143 L 2.0000 2.6071 L 2.0000 2.6032 L 1.4095 2.6032 L 1.4095 2.0000 L 2.0000 2.0000 L 2.0000 2.0000 Z" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+    <rect transform="translate(0.5000, 86.2500) translate(-2.0, -2.0)" x="18.1909" y="2.6250" width="4.0000" height="3.0000" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+    <rect transform="translate(0.5000, 86.2500) translate(-2.0, -2.0)" x="17.9114" y="2.3455" width="4.5590" height="3.5590" fill="none" stroke="#e09500" stroke-width="0.01"/>
+<text x="19.9016" y="89.0972" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="80" fill="#000000" text-anchor="middle">BOTTOM</text>
+<text x="19.9016" y="91.0139" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">BOTTOM_RAIL_HATCH_CUT</text>
+<text x="19.9016" y="93.1528" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Inside)</text>
+<text x="19.9016" y="95.2917" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">BOTTOM_RAIL_PERIMETER</text>
+<text x="19.9016" y="97.4306" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Outside)</text>
+<text x="16.5000" y="99.8333" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="80" fill="#000000" text-anchor="middle">CLEAT WALL</text>
+<text x="16.5000" y="102.0556" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">HOLES_CSINK</text>
+<text x="16.5000" y="104.1944" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> HOLES (Inside)</text>
+<text x="16.5000" y="106.3333" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">HOLES_THROUGH</text>
+<text x="16.5000" y="108.4722" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> HOLES (Inside)</text>
+<text x="16.5000" y="110.6111" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">PERIMETER</text>
+<text x="16.5000" y="112.7500" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Outside)</text>
+<text x="16.5000" y="114.8889" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">SCORE</text>
+<text x="16.5000" y="117.0278" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> NO OFFSET (Score)</text>
+    <rect transform="translate(39.8032, 81.5000) translate(-2.0, -2.0)" x="2.0000" y="2.0000" width="4.5590" height="3.5590" fill="none" stroke="#ff0000" stroke-width="0.01"/>
+    <rect transform="translate(39.8032, 81.5000) translate(-2.0, -2.0)" x="2.2795" y="2.2795" width="4.0000" height="3.0000" fill="none" stroke="#e09500" stroke-width="0.01"/>
+    <circle transform="translate(39.8032, 81.5000) translate(-2.0, -2.0)" cx="2.1398" cy="2.1398" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+    <circle transform="translate(39.8032, 81.5000) translate(-2.0, -2.0)" cx="6.4193" cy="2.1398" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+    <circle transform="translate(39.8032, 81.5000) translate(-2.0, -2.0)" cx="2.1398" cy="5.4193" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+    <circle transform="translate(39.8032, 81.5000) translate(-2.0, -2.0)" cx="6.4193" cy="5.4193" r="0.1000" fill="none" stroke="#0000ff" stroke-width="0.01"/>
+<text x="42.0827" y="82.7795" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="80" fill="#000000" text-anchor="middle">BOTTOM HATCH LID</text>
+<text x="42.0827" y="84.8490" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">BOTTOM_RAIL_HATCH_LID</text>
+<text x="42.0827" y="86.9878" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Outside)</text>
+  <rect x="52.0000" y="0" width="48.0000" height="48.0000" fill="none" stroke="#cccccc" stroke-width="0.05" />
+<text x="76.0000" y="-1.0000" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="150" fill="#000000" text-anchor="middle">Sheet 2 (48.0x48.0)</text>
+<text x="68.5000" y="2.0000" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="80" fill="#000000" text-anchor="middle">CLEAT BOX</text>
+<text x="68.5000" y="4.0694" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">HOLES_CSINK</text>
+<text x="68.5000" y="6.2083" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> HOLES (Inside)</text>
+<text x="68.5000" y="8.3472" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">HOLES_THROUGH</text>
+<text x="68.5000" y="10.4861" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> HOLES (Inside)</text>
+<text x="68.5000" y="12.6250" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">PERIMETER</text>
+<text x="68.5000" y="14.7639" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> CONTOUR (Outside)</text>
+<text x="68.5000" y="16.9028" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#002bff" text-anchor="middle">SCORE</text>
+<text x="68.5000" y="19.0417" font-family="Lato Black, Lato, sans-serif" font-weight="900" font-size="70" fill="#15ff2b" text-anchor="middle">-> NO OFFSET (Score)</text>
+</svg>

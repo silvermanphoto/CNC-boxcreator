@@ -1,0 +1,214 @@
+================================================================================
+BUG FIX GUIDANCE: RAIL PERIMETER CORNER GAP FIX
+================================================================================
+
+PROBLEM DESCRIPTION
+-------------------
+The TOP_RAIL_PERIMETER and BOTTOM_RAIL_PERIMETER SVG outputs have path 
+discontinuities at all 4 corners. The main horizontal lines (top and bottom 
+edges) do not connect cleanly to the first/last finger segments.
+
+VISUAL SYMPTOM
+--------------
+When zoomed in on any corner, there is a visible gap of 0.0039 inches between:
+  - The main horizontal edge line
+  - The first vertical segment of the finger pattern
+
+EXAMPLE FROM GENERATED SVG
+--------------------------
+  Top edge ends at:     L 40.8032 2.0000
+  First finger starts:  L 40.8032 2.0039   <-- WRONG! Should be 2.0000
+
+
+================================================================================
+ROOT CAUSE
+================================================================================
+
+When generating the finger pattern path, the code calculates intermediate 
+Y-positions for the fingers, but the FIRST and LAST finger Y-coordinates are 
+not snapped to the exact Y-coordinate of the main horizontal edge.
+
+The 0.0039" offset appears to be a cumulative rounding artifact from finger 
+spacing calculations.
+
+
+================================================================================
+THE FIX (PSEUDOCODE)
+================================================================================
+
+WHEN generating rail perimeter path for TOP_RAIL or BOTTOM_RAIL:
+
+  1. STORE the exact Y-coordinates of the main edges:
+     - top_edge_y = (starting Y of top horizontal line)
+     - bottom_edge_y = (starting Y of bottom horizontal line)
+
+  2. WHEN transitioning from main horizontal edge TO finger pattern:
+     - The FIRST finger segment's Y-coordinate MUST equal the main edge Y exactly
+     - DO NOT use calculated finger grid position for the corner transition
+     
+     Example for top-right corner:
+       WRONG:  L {right_edge_x} {calculated_first_finger_y}
+       RIGHT:  L {right_edge_x} {top_edge_y}
+     
+  3. WHEN transitioning from finger pattern BACK TO main horizontal edge:
+     - The LAST finger segment's Y-coordinate MUST equal the main edge Y exactly
+     
+     Example for bottom-right corner:
+       WRONG:  L {finger_x} {calculated_last_finger_y} L {right_edge_x} {calculated_last_finger_y}
+       RIGHT:  L {finger_x} {bottom_edge_y} L {right_edge_x} {bottom_edge_y}
+
+  4. ALL INTERIOR FINGERS remain unchanged - only the 4 corner transitions need fixing
+
+
+================================================================================
+SPECIFIC FIX LOCATIONS
+================================================================================
+
+For each rail perimeter, there are 4 corner transitions to fix:
+
+  Corner          Transition                        Fix
+  --------------- --------------------------------- ----------------------------
+  Top-Right       Top edge -> Right fingers         First finger Y = top_edge_y
+  Bottom-Right    Right fingers -> Bottom edge      Last finger Y = bottom_edge_y
+  Bottom-Left     Bottom edge -> Left fingers       First finger Y = bottom_edge_y
+  Top-Left        Left fingers -> Top edge (close)  Last finger Y = top_edge_y
+
+
+================================================================================
+IMPLEMENTATION STRATEGY
+================================================================================
+
+OPTION A: Post-process snap
+---------------------------
+After generating the finger coordinates, snap the first and last Y-values 
+to the edge coordinates:
+
+  # After generating right_side_fingers list:
+  right_side_fingers[0].y = top_edge_y      # First finger snaps to top
+  right_side_fingers[-1].y = bottom_edge_y  # Last finger snaps to bottom
+
+
+OPTION B: Path construction fix
+-------------------------------
+When building the SVG path string, explicitly use edge Y-values for corner 
+segments:
+
+  # When writing top-right corner transition:
+  path += f"L {right_x} {top_edge_y} "  # Vertical stays at top edge Y
+  path += f"L {finger_extend_x} {top_edge_y} "  # First finger at top edge Y
+  # Then continue with interior finger Y values...
+
+
+================================================================================
+FILES TO MODIFY
+================================================================================
+
+CNC GENERATOR - CARBIDE-OPTIMIZED v1.22.py (or current version)
+
+Look for functions that generate:
+  - TOP_RAIL_PERIMETER
+  - BOTTOM_RAIL_PERIMETER
+
+The fix should be applied in the path-building logic where the finger pattern 
+coordinates are assembled.
+
+
+================================================================================
+VALIDATION (MANUAL)
+================================================================================
+
+After fix, verify:
+  1. All 4 corners of each rail have continuous lines with no gaps
+  2. Interior finger geometry remains unchanged
+  3. Path closes properly (starts and ends at same point)
+
+
+================================================================================
+AUTOMATED VALIDATION CHECK (ADD THIS TO GENERATOR)
+================================================================================
+
+PURPOSE
+-------
+Ensure the top and bottom horizontal edges of ALL rails are perfectly straight 
+from corner to corner -- no jagged segments, no Y-offsets.
+
+VALIDATION PSEUDOCODE
+---------------------
+
+def validate_rail_edge_straightness(path_data, rail_name):
+    """
+    Check that top and bottom edges are perfectly straight lines.
+    Call this AFTER generating each rail perimeter path, BEFORE writing to SVG.
+    """
+    
+    # Parse path into list of (x, y) coordinate pairs
+    coords = parse_path_to_coordinates(path_data)
+    
+    # Identify edge Y-values (the main horizontal lines)
+    top_edge_y = min(coord.y for coord in coords)      # Topmost Y
+    bottom_edge_y = max(coord.y for coord in coords)   # Bottommost Y
+    
+    # Find all points that SHOULD be on the top edge
+    # (points with Y within tolerance of top_edge_y that are part of horizontal runs)
+    top_edge_points = [c for c in coords if abs(c.y - top_edge_y) < 0.01]
+    
+    # Find all points that SHOULD be on the bottom edge
+    bottom_edge_points = [c for c in coords if abs(c.y - bottom_edge_y) < 0.01]
+    
+    # VALIDATION: All top edge points must have EXACTLY the same Y
+    top_y_values = set(round(p.y, 4) for p in top_edge_points)
+    if len(top_y_values) > 1:
+        raise ValueError(
+            f"{rail_name}: TOP EDGE NOT STRAIGHT! "
+            f"Found multiple Y-values: {top_y_values}. "
+            f"Expected single value: {top_edge_y}"
+        )
+    
+    # VALIDATION: All bottom edge points must have EXACTLY the same Y
+    bottom_y_values = set(round(p.y, 4) for p in bottom_edge_points)
+    if len(bottom_y_values) > 1:
+        raise ValueError(
+            f"{rail_name}: BOTTOM EDGE NOT STRAIGHT! "
+            f"Found multiple Y-values: {bottom_y_values}. "
+            f"Expected single value: {bottom_edge_y}"
+        )
+    
+    print(f"OK {rail_name}: Top and bottom edges validated as straight")
+    return True
+
+
+WHERE TO CALL THIS CHECK
+------------------------
+
+# After generating each rail perimeter path:
+top_rail_path = generate_top_rail_perimeter(...)
+validate_rail_edge_straightness(top_rail_path, "TOP_RAIL_PERIMETER")
+
+bottom_rail_path = generate_bottom_rail_perimeter(...)
+validate_rail_edge_straightness(bottom_rail_path, "BOTTOM_RAIL_PERIMETER")
+
+# Apply to ALL rail types that have perimeters
+
+
+WHAT THIS CATCHES
+-----------------
+
+  Issue                                   Detection
+  --------------------------------------- ---------------------------------
+  Corner gap bug (0.0039" offset)         Multiple Y-values on same edge
+  Rounding errors in finger calculations  Y-values not snapped to edge
+  Path construction mistakes              Points straying from edge line
+
+
+FAILURE BEHAVIOR
+----------------
+
+If validation fails:
+  - Raise an error to halt SVG generation
+  - Report which rail has the problem
+  - Show the offending Y-values so developer can trace the bug
+
+
+================================================================================
+Generated 2026-01-26 to fix corner discontinuity bug in rail perimeter SVG generation
+================================================================================

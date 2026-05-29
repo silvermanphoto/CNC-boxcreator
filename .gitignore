@@ -1,0 +1,49 @@
+# === Build Outputs ===
+dist/
+build/
+out/
+release/
+dist-electron/
+.vite/
+coverage/
+
+# === macOS App Bundles (PyInstaller / py2app outputs) ===
+*.app/
+
+# === Node ===
+node_modules/
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# === Secrets ===
+.env
+.env.*
+*.key
+*.pem
+
+# === macOS ===
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# === Logs ===
+*.log
+
+# === IDE / Tool ===
+.wrangler/
+.claude/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# === PyInstaller ===
+*.spec
