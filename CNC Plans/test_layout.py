@@ -3,30 +3,26 @@
 
 import sys
 import os
+import re
 
 # Add current dir to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Import from the main file - we need to import the module properly
-# Since it has spaces in the name, use importlib
-import importlib.util
+# M7 FIX: this is a post-hoc inspector of the most recent generated output folder.
+# The old broken importlib reference to "CNC GENERATOR - Claude v1.04.py" (which does not
+# exist and was never executed) has been removed, and the folder pattern updated to the
+# current "McTell SVGs v<N>" naming. To generate output, run cnc_generator.py (GUI) or the
+# headless acceptance test in test_gen.py.
 
-spec = importlib.util.spec_from_file_location("cnc_generator", "CNC GENERATOR - Claude v1.04.py")
-cnc = importlib.util.module_from_spec(spec)
-
-# We can't easily load it due to the tkinter mainloop at the end
-# Instead, let's just run the generator directly with subprocess and check output
-
-import subprocess
 import json
 from pathlib import Path
 
 # Find the most recent output folder
-out_path = Path("/Users/joelsilverman/Desktop/2026 Files/26-005 CNC Box Creator/CNC Plans")
+out_path = Path(__file__).resolve().parent
 
-# Look for CNC Box Generator folders
-folders = sorted([f for f in out_path.iterdir() if f.is_dir() and "CNC Box Generator v" in f.name],
-                 key=lambda x: int(x.name.split('v')[-1]) if x.name.split('v')[-1].isdigit() else 0)
+# Look for the current output folders ("McTell SVGs v<N>")
+folders = sorted([f for f in out_path.iterdir() if f.is_dir() and "McTell SVGs v" in f.name],
+                 key=lambda x: int(re.search(r'v(\d+)', x.name).group(1)) if re.search(r'v(\d+)', x.name) else 0)
 
 if folders:
     latest = folders[-1]

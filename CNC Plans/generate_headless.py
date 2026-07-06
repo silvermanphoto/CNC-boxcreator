@@ -31,6 +31,18 @@ cnc_generator.CONFIG['TOOL_D_PRIMARY'] = 0.125 * 25.4 # 1/8" bit
 cnc_generator.CONFIG['FIT_TOLERANCE'] = 0.2 # 0.2mm glue gap from screenshot
 cnc_generator.CONFIG['TARGET_FINGER_WIDTH'] = 15.2 # Matching stock
 
+# M5 FIX: match the GUI's rim/rabbet computation. Previously these keys were unset here,
+# so the panel generators fell back to a 0.3" default rim — 0.3" different per side from
+# what the GUI produces for the same inputs.
+_stock_in = stock_mm / 25.4
+_calc_rim_in = _stock_in + (cnc_generator.CONFIG['FIT_TOLERANCE'] / 25.4)  # no lid-fit adj headless
+cnc_generator.CONFIG['FRONT_RIM_WIDTH_IN'] = _calc_rim_in
+cnc_generator.CONFIG['BACK_RIM_WIDTH_IN'] = _calc_rim_in
+cnc_generator.CONFIG['FRONT_RABBET_WIDTH'] = _stock_in - _calc_rim_in  # legacy proxy (Blender)
+cnc_generator.CONFIG['BACK_RABBET_WIDTH'] = _stock_in - _calc_rim_in   # legacy proxy (Blender)
+cnc_generator.CONFIG['FRONT_RABBET_DEPTH'] = _stock_in / 2.0
+cnc_generator.CONFIG['BACK_RABBET_DEPTH'] = _stock_in / 2.0
+
 # Window
 cnc_generator.CONFIG['WINDOW_ENABLED'] = True
 cnc_generator.CONFIG['WINDOW_WIDTH_IN'] = window_w_in

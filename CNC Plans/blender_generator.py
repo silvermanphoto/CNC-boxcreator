@@ -153,13 +153,15 @@ CONFIG = {{
     'BACK_HOLE_RADIUS_M': {back_hole_r_m:.6f},
     'BACK_RIM_WIDTH_M': {back_rim_width_m:.6f},
     'FRONT_RIM_WIDTH_M': {front_rim_width_m:.6f},
-    'CLEATS_ENABLED': {str(config.get('CLEATS_ENABLED', True))},
-    'HATCH_ENABLED': {str(config.get('HATCH_ENABLED', False))},
+    'CLEATS_ENABLED': {bool(config.get('CLEATS_ENABLED', True))},
+    'HATCH_ENABLED': {bool(config.get('HATCH_ENABLED', False))},
     'HATCH_WIDTH_PCT': {config.get('HATCH_WIDTH_PCT', 50.0)},
     'HATCH_HEIGHT_PCT': {config.get('HATCH_HEIGHT_PCT', 33.0)},
-    'HATCH_RAISE_IN': {config.get('HATCH_RAISE', 0.0)}, # HATCH_RAISE key in config might be string or float from app? App uses vars. 
-    # In run_generation: config['HATCH_RAISE'] = float(self.vars['hatch_raise'].get())
-    # So it should be a float or parseable.
+    'HATCH_RAISE_IN': {config.get('HATCH_RAISE_IN', 0.0)},  # M4 FIX: was HATCH_RAISE (never set) -> always 0
+    'BOTTOM_HATCH_ENABLED': {bool(config.get('BOTTOM_HATCH_ENABLED', False))},  # H3 FIX: keys were omitted entirely
+    'BOTTOM_HATCH_WIDTH': {config.get('BOTTOM_HATCH_WIDTH', 0.0)},
+    'BOTTOM_HATCH_HEIGHT': {config.get('BOTTOM_HATCH_HEIGHT', 0.0)},
+    'BOTTOM_HATCH_X_PCT': {config.get('BOTTOM_HATCH_X_PCT', 50.0)},
 }}
 
 # Back panel hole positions (in meters, relative to panel origin at bottom-left)
@@ -671,6 +673,13 @@ def create_shadowbox_assembly():
     back_rab_w = CONFIG['BACK_RABBET_WIDTH_M']
     back_rab_d = CONFIG['BACK_RABBET_DEPTH_M']
 
+    # H4 FIX: half extents defined here, before the cleat/hatch sections (5b/5c/5d) use them.
+    # They were previously defined only in section 6, ~200 lines below their first use,
+    # which raised NameError once the feature gates (H3) actually let those sections run.
+    half_w = total_w / 2
+    half_h = total_h / 2
+    half_d = box_d / 2
+
     parts = {{}}
 
     # TOP RAIL
@@ -735,7 +744,7 @@ def create_shadowbox_assembly():
 
     # 5b. CREATE CLEATS (Restored v1.13)
     # Check if enabled
-    if CONFIG.get('CLEATS_ENABLED', 'True') == 'True':
+    if CONFIG.get('CLEATS_ENABLED', False):  # H3 FIX: was == 'True' (bool never equals str) -> never ran
         print("[5b/8] Creating French Cleats...")
         # Cleats Dims: 0.75" thick (or stock), 3" tall? No, usually 45 deg.
         # User Specs? usually ~3 inches height.
@@ -808,7 +817,7 @@ def create_shadowbox_assembly():
         parts['CLEAT_WALL'] = cleat_obj_wall
 
     # 5c. CREATE BOTTOM ACCESS HATCH (v1.25)
-    if CONFIG.get('BOTTOM_HATCH_ENABLED', 'False') == 'True':
+    if CONFIG.get('BOTTOM_HATCH_ENABLED', False):  # H3 FIX: was == 'True' -> never ran
         print("[5c/8] Creating Bottom Access Hatch...")
         # Dims from Config (mm -> in -> m)
         bh_w_m = CONFIG.get('BOTTOM_HATCH_WIDTH', 0) * 0.001 # stored in mm in CONFIG?
@@ -909,7 +918,7 @@ def create_shadowbox_assembly():
         apply_boolean_difference(parts['BOTTOM'], c2, delete_cutter=True)
 
     # 5d. CREATE HATCH (Rear)
-    if CONFIG.get('HATCH_ENABLED', 'False') == 'True':
+    if CONFIG.get('HATCH_ENABLED', False):  # H3 FIX: was == 'True' -> never ran
         print("[5d/8] Creating Rear Hatch Lid...")
         w_pct = float(CONFIG.get('HATCH_WIDTH_PCT', 50.0))
         h_pct = float(CONFIG.get('HATCH_HEIGHT_PCT', 33.0))
@@ -977,9 +986,7 @@ def create_shadowbox_assembly():
     # 6. POSITION PARTS
     print("[6/8] Positioning parts...")
 
-    half_w = total_w / 2
-    half_h = total_h / 2
-    half_d = box_d / 2
+    # H4 FIX: half_w/half_h/half_d now defined once, near the top of this function.
 
     # Set origins to geometry center
     for key, obj in parts.items():
@@ -1047,6 +1054,9 @@ def create_shadowbox_assembly():
     light_data.spread = math.radians(180)  # Spread: 180 degrees
 
     # Set exposure on the scene/view layer
+    # M6 NOTE: USER_SPECIFICATIONS SPEC-009 specifies exposure 2.5; this code uses 4.0.
+    # Left at 4.0 (visual choice) rather than silently changing brightness — reconcile with
+    # SPEC-009 (update the spec, or set this to 2.5) per your preference.
     bpy.context.scene.view_settings.exposure = 4.0
 
     light_obj = bpy.data.objects.new("Area_Light", light_data)
@@ -1063,7 +1073,7 @@ def create_shadowbox_assembly():
             for space in area.spaces:
                 if space.type == 'VIEW_3D':
                     space.shading.type = 'MATERIAL'
-                    space.clip_start = 0.01
+                    space.clip_start = 0.001  # M6 FIX: SPEC-008 requires <= 0.001m (was 0.01, 10x too far)
                     space.clip_end = 1000.0
                     break
             break

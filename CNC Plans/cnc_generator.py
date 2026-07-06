@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.25
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.26
 # ========================================
-# PRODUCTION RELEASE v1.25
+# PRODUCTION RELEASE v1.26  (fable-review fix pass: C1-C3, H1-H7, M1-M7, L1-L4)
 #
 # Key Changes:
 # - Extracted Blender/TriVision generation to separate module (blender_generator.py).
@@ -54,29 +54,24 @@ def ensure_dependencies():
             missing.append(pkg)
 
     if missing:
-        print(f"Installing missing dependencies: {', '.join(missing)}")
-        
         # Check if running in a virtual environment
         in_venv = sys.prefix != sys.base_prefix
-        
-        cmd = [sys.executable, '-m', 'pip', 'install']
-        
-        # Only use --user if NOT in a virtual environment
-        if not in_venv:
-            cmd.append('--user')
-            
-        try:
-            subprocess.check_call(cmd + missing)
-        except subprocess.CalledProcessError:
-            # If failed and NOT in venv, try --break-system-packages (for Homebrew/managed python)
-            if not in_venv:
-                print("Retrying with --break-system-packages flag...")
-                cmd.append('--break-system-packages')
-                subprocess.check_call(cmd + missing)
-            else:
-                # If in venv and failed, re-raise the error
-                raise
 
+        # L4 FIX: do not silently mutate the system Python (the old code retried with
+        # --break-system-packages on a non-venv interpreter, which can corrupt a
+        # Homebrew/managed environment). Inside a venv, install normally; outside one,
+        # stop and tell the user to use the project venv.
+        if not in_venv:
+            print(
+                "Missing dependencies: " + ", ".join(missing) + "\n"
+                "Refusing to install into the system Python. Create/activate the project\n"
+                "virtual environment first, e.g.:\n"
+                "    python3 -m venv venv && source venv/bin/activate && pip install " + " ".join(missing) + "\n"
+                "then re-launch this app with that interpreter.")
+            sys.exit(1)
+
+        print(f"Installing missing dependencies into the active venv: {', '.join(missing)}")
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install'] + missing)
         print("Dependencies installed. Please restart the application.")
         sys.exit(0)
 
@@ -464,13 +459,8 @@ def convert_string_to_mm(value_str, default_unit="inches"):
     except ValueError:
         return 0.0
 
-def compute_finger_layout(edge_len, target_w):
-    """Compute finger count and width for edge."""
-    count = round(edge_len / target_w)
-    if count % 2 == 0:
-        count += 1
-    actual_w = edge_len / count
-    return count, actual_w
+# L1 FIX: duplicate compute_finger_layout removed — it was shadowed by the identical
+# definition below and an edit here would have silently done nothing.
 
 # ==============================================================================
 # SVG HELPER FUNCTIONS
@@ -848,16 +838,16 @@ def generate_front_bezel_parts(version):
     height_in = convert_to_inches(CONFIG['TOTAL_HEIGHT'])
     
     stock_thk = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-    front_rabbet_w = CONFIG.get('FRONT_RABBET_WIDTH', 0.3)
-    
-    # Calculate Inner Plug Inset
-    # The Rail Rabbet creates a 'shelf' of width `front_rabbet_w`.
-    # The remaining rail edge creates a 'rim' of width `Stock - front_rabbet_w`.
-    # The Bezel Plug fits inside this rim.
-    rim_width = stock_thk - front_rabbet_w
-    
+
+    # M5 FIX: prefer the physical rim width (inches). Fall back to the legacy proxy
+    # (stock - FRONT_RABBET_WIDTH) so old configs still behave identically.
+    if 'FRONT_RIM_WIDTH_IN' in CONFIG:
+        rim_width = CONFIG['FRONT_RIM_WIDTH_IN']
+    else:
+        rim_width = stock_thk - CONFIG.get('FRONT_RABBET_WIDTH', 0.3)
+
     # Check for validity
-    if rim_width < 0: rim_width = 0 
+    if rim_width < 0: rim_width = 0
     
     inner_w = width_in - (2 * rim_width)
     inner_h = height_in - (2 * rim_width)
@@ -963,8 +953,9 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
     # v48 UPDATE: Pilot Holes = 7.14375mm, centered on (Stock + GlueGap)/2
     
     stock_thk = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-    glue_gap = convert_to_inches(CONFIG.get('GLUE_GAP', 0.5)) # Default 0.5mm
-    
+    # H5 FIX: dead local removed. The UI "Glue Gap" field is stored as FIT_TOLERANCE;
+    # CONFIG['GLUE_GAP'] was never written, so every reader defaulted to 0.5mm.
+
     # Calculate Base Width for Perimeter Generation
     if is_horizontal:
         rail_w_in = convert_to_inches(CONFIG['TOTAL_WIDTH']) - (2 * stock_thk)
@@ -1107,7 +1098,7 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
             # Yes.
             
             st_in = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-            gg_in = convert_to_inches(CONFIG.get('GLUE_GAP', 0.5))
+            gg_in = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.5))  # H5 FIX: was GLUE_GAP (never set)
             flange_w = (st_in / 2.0) - gg_in
             
             # Clamp flange
@@ -1151,31 +1142,29 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
             files[f"{rail_name}_HATCH_CUT.v{version}.svg"] = "\n".join(hatch_elements)
             
             # 2. LID (Separate Part)
-            # Lid Size = Shelf Size (minus fit_tolerance? No, usually Lid matches Shelf Outer, Plug matches Hole).
-            # Lid Outer = Shelf Outer.
-            # Lid Plug (Inner Step) = Opening Size (minus fit adjustment).
-            
-            lid_w = shelf_w
-            lid_h = shelf_h
-            
+            # H7 FIX: shrink the lid outer AND plug by the fit tolerance (gg_in) so the lid
+            # drops into the nominal shelf recess. Shelf/opening cut above stay nominal.
+            lid_w = shelf_w - gg_in
+            lid_h = shelf_h - gg_in
+
             # Lid Canvas
             l_can_w = lid_w + 4.0
             l_can_h = lid_h + 4.0
             lx = 2.0
             ly = 2.0
-            
+
             lid_elements = []
             lid_elements.append(create_svg_header(l_can_w, l_can_h, f"{rail_name}_HATCH_LID"))
-            
-            # Perimeter
+
+            # Perimeter (shrunk for fit)
             lid_elements.append(create_rect(lx, ly, lid_w, lid_h, COLOR_PERIMETER))
-            
-            # Rabbet (Plug)
-            # Inner = Opening Size
+
+            # Rabbet (Plug). Inner = Opening - fit so the plug enters the hole;
+            # flange width preserved because outer and plug shrink equally.
             lr_x = lx + flange_w
             lr_y = ly + flange_w
-            lid_elements.append(create_rect(lr_x, lr_y, bh_w_in, bh_h_in, COLOR_RABBETS))
-            
+            lid_elements.append(create_rect(lr_x, lr_y, bh_w_in - gg_in, bh_h_in - gg_in, COLOR_RABBETS))
+
             # Holes (4 corners)
             hr = 0.1
             coff = flange_w / 2.0
@@ -1254,14 +1243,11 @@ class BinPacker:
                             placed = True
                             break
                         else:
-                            # Revert if it didn't help (though usually bigger is better, 
-                            # we might prefer a new 48x48 sheet over a huge one? 
-                            # User said "backup default size is 48x96". 
-                            # Implies prefer 48x48, but expand if needed.
-                            # So if it DOES fit, keep expansion.
-                            # If it doesn't fit even in 96, we definitely need a new sheet (or it's too big).
-                            pass 
-                            
+                            # L2 FIX: expansion did not help — revert to the original height
+                            # so this sheet is not left at 96" (which would inflate the master
+                            # canvas and let later items place on a phantom lower half).
+                            sheet['h'] = original_h
+
                 if not placed:
                     # Create new 48x48 Sheet
                     self.add_sheet(48.0, 48.0)
@@ -1515,9 +1501,16 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
     parts_to_pack.append(prepare_part("BACK", f_back, total_w, total_h))
     
     # Rails
-    w_topbot = total_w - (2 * stock_thk)
-    parts_to_pack.append(prepare_part("TOP", f_top, w_topbot, box_d))
-    parts_to_pack.append(prepare_part("BOTTOM", f_bot, w_topbot, box_d))
+    # C1 FIX: Horizontal rails carry corner fingers that PROTRUDE `overhang` beyond the
+    # rail body on each end (see generate_perimeter_with_fingers). Packing on the body
+    # width alone let neighbours overlap and pushed the leftmost finger off-sheet. Pack on
+    # the TRUE width (body + 2*overhang) and stash x_shift so the render transform slides
+    # the content right, mapping the leftmost finger tip to the cell origin.
+    fit_tol_in = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.254))
+    overhang = stock_thk - fit_tol_in
+    w_topbot = (total_w - (2 * stock_thk)) + (2 * overhang)
+    parts_to_pack.append(prepare_part("TOP", f_top, w_topbot, box_d, extra_id={'x_shift': overhang}))
+    parts_to_pack.append(prepare_part("BOTTOM", f_bot, w_topbot, box_d, extra_id={'x_shift': overhang}))
     
     w_sides = total_h
     parts_to_pack.append(prepare_part("LEFT", f_left, w_sides, box_d))
@@ -1598,7 +1591,7 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
         bh_h_in = convert_to_inches(bh_h)
         
         st_in = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-        gg_in = convert_to_inches(CONFIG.get('GLUE_GAP', 0.5)) # default
+        gg_in = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.5))  # H5 FIX: was GLUE_GAP (never set)
         flange_w_in = (st_in / 2.0) - gg_in
         
         lid_w_in = bh_w_in + (2 * flange_w_in)
@@ -1674,11 +1667,16 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
             global_x = sheet_x_offset + p_info['x']
             global_y = p_info['y']
             rotated = p_info['rotated']
-            
+
+            # C1 FIX: shift content by the finger overhang (0 for parts without protruding
+            # fingers) so the part's true bounding box maps onto its packed cell.
+            _extra = part.get('extra')
+            x_shift = _extra.get('x_shift', 0) if isinstance(_extra, dict) else 0
+
             if rotated:
-                tf = f'translate({f(global_x + part["h"])}, {f(global_y)}) rotate(90) translate(-2.0, -2.0)'
+                tf = f'translate({f(global_x + part["h"])}, {f(global_y + x_shift)}) rotate(90) translate(-2.0, -2.0)'
             else:
-                tf = f'translate({f(global_x)}, {f(global_y)}) translate(-2.0, -2.0)'
+                tf = f'translate({f(global_x + x_shift)}, {f(global_y)}) translate(-2.0, -2.0)'
             
             # Group by Part
             lines.append(f'  <g id="{part["id"]}" data-name="{part["id"]}">')
@@ -1691,30 +1689,31 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
             
             # Map Filenames -> Layer Types
             def get_layer_type_v11(fname):
+                # H2 FIX: order matters — most-specific substrings first. "HOLES_CSINK"
+                # must be tested before the generic "HOLES" rule, or countersink pockets
+                # get milled as through-holes.
                 if "PERIMETER" in fname: return '01_CUTS', 'CONTOUR (Outside)'
                 if "HATCH_LID" in fname: return '01_CUTS', 'CONTOUR (Outside)'
-                if "BOTTOM_HATCH_LID" in fname: return '01_CUTS', 'CONTOUR (Outside)'
                 if "HOLES_THROUGH" in fname: return '02_HOLES', 'HOLES (Inside)'
+                if "HOLES_CSINK" in fname: return '04_POCKETS', 'POCKET'
                 if "HOLES" in fname: return '02_HOLES', 'HOLES (Inside)'
                 if "RABBETS" in fname: return '03_RABBETS', 'POCKET'
-                if "HOLES_CSINK" in fname: return '04_POCKETS', 'POCKET'
                 if "POCKETS" in fname: return '04_POCKETS', 'POCKET'
                 if "SCORE" in fname: return '06_SCORES', 'NO OFFSET (Score)'
-                if "HATCH_CUT" in fname: return '05_WINDOWS', 'CONTOUR (Inside)' 
-                if "BOTTOM_HATCH_CUT" in fname: return '05_WINDOWS', 'CONTOUR (Inside)'
+                if "HATCH_CUT" in fname: return '05_WINDOWS', 'CONTOUR (Inside)'
                 if "WINDOW" in fname: return '05_WINDOWS', 'CONTOUR (Inside)'
                 return None, None
 
             # Render Part Files
             # Buffer for combining paths by Type
+            # L1 FIX: "BOTTOM ACCESS *" buckets removed — after the C2 fix, hatch cuts route
+            # to the standard INSIDE WINDOW (through) and RABBET (pocket) buckets.
             buffered_paths = {
                 "OUTSIDE CUTS": {'d': [], 'color': "#ff00ff"},
                 "HOLE": {'d': [], 'color': "#00ffff"},
                 "RABBET": {'d': [], 'color': "#00ff00"},
                 "INSIDE WINDOW": {'d': [], 'color': "#ff0000"},
                 "SCORE": {'d': [], 'color': "#ffe500"},
-                "BOTTOM ACCESS RABBET": {'d': [], 'color': "#00ff00"},
-                "BOTTOM ACCESS CUT": {'d': [], 'color': "#ff0000"} 
             }
 
             # Helper to extract 'd' from any shape tag
@@ -1746,8 +1745,14 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
                     x2 = float(re.search(r'x2="([^"]*)"', tag_line).group(1))
                     y2 = float(re.search(r'y2="([^"]*)"', tag_line).group(1))
                     return f"M {x1} {y1} L {x2} {y2}"
-                    
+
                 return None
+
+            def _stroke_of(tag_line):
+                """H1 FIX: read a flattened element's stroke colour so mixed-content
+                files (hatch lids) can route each element to the right toolpath."""
+                m = re.search(r'stroke="([^"]*)"', tag_line)
+                return m.group(1) if m else None
 
             for fname, content in files_to_render.items():
                 # Debug Check
@@ -1784,31 +1789,30 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
                 for i, line in enumerate(raw_lines):
                     d_attr = get_d_from_tag(line)
                     if not d_attr: continue
-                    
-                    # Special Case: Bottom Access Panel Logic
-                    if "BOTTOM_HATCH_CUT" in fname: # Actually RAIL_NAME_HATCH_CUT
-                         # Index 0 = Inner (Through Cut) -> BOTTOM ACCESS CUT
-                         # Index 1 = Outer (Shelf) -> BOTTOM ACCESS RABBET
-                         
-                         if i == 0:
-                             # Inner -> ACCESS PANEL CUT
-                             buffered_paths["BOTTOM ACCESS CUT"]['d'].append(d_attr)
-                             # Inner -> ACCESS RABBET (for double line rabbet visual if desired? User said "BOTTOM ACCESS RABBET")
-                             # User said "Layer Bottom: BOTTOM INSIDE WINDOW should be called BOTTOM ACCESS RABBET"
-                             # And "BOTTOM ACCESS CUT... single rectangle... no inner line to act as a rabbet"
-                             # Wait. A Rabbet usually IS two lines (Outer and Inner).
-                             # If "BOTTOM ACCESS CUT" is just the Inner Rectangle (Through Cut).
-                             # And "BOTTOM ACCESS RABBET" replaces the old Window/Rabbet.
-                             # If the user wants the Rabbet to have "Two Lines", then we should add BOTH Index 0 and Index 1 to "BOTTOM ACCESS RABBET".
-                             # But "BOTTOM ACCESS CUT" is separate.
-                             
-                             buffered_paths["BOTTOM ACCESS RABBET"]['d'].append(d_attr) # Inner line of Rabbet
-                             
-                         elif i == 1:
-                             # Outer -> BOTTOM ACCESS RABBET
-                             buffered_paths["BOTTOM ACCESS RABBET"]['d'].append(d_attr) # Outer line of Rabbet
-                    
-                    # Logic for standard categorization
+
+                    # C2 FIX: hatch-cut files (BACK_PANEL_HATCH_CUT / BOTTOM_RAIL_HATCH_CUT)
+                    # hold two rects — index 0 is the through opening, index 1 is the shelf
+                    # pocket. Route them to different toolpath buckets instead of merging
+                    # both into a single through-cut path (which milled away the shelf).
+                    if "HATCH_CUT" in fname:
+                        if i == 0:
+                            buffered_paths["INSIDE WINDOW"]['d'].append(d_attr)   # through opening
+                        elif i == 1:
+                            buffered_paths["RABBET"]['d'].append(d_attr)          # shelf pocket
+
+                    # H1 FIX: lid files hold mixed cut types (outer perimeter, inner rabbet
+                    # step, corner screw holes). Route each element by its stroke colour so
+                    # the rabbet and holes are not milled as outside contours.
+                    elif "HATCH_LID" in fname:
+                        stroke = _stroke_of(line)
+                        if stroke == COLOR_HOLES:
+                            buffered_paths["HOLE"]['d'].append(d_attr)
+                        elif stroke == COLOR_RABBETS:
+                            buffered_paths["RABBET"]['d'].append(d_attr)
+                        else:
+                            buffered_paths["OUTSIDE CUTS"]['d'].append(d_attr)
+
+                    # Standard categorization (single-cut-type files)
                     elif element_base_name in buffered_paths:
                          buffered_paths[element_base_name]['d'].append(d_attr)
 
@@ -1834,6 +1838,7 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
             # Render Nested Hatch
             if part.get('nested_hatch'):
                 h_data = part['nested_hatch']
+                element_counts = {}  # C3 FIX: was referenced below but never defined -> NameError
                 off_x = (part['w'] - h_data['lid_w']) / 2
                 off_y = (part['h'] - h_data['lid_h']) / 2
                 
@@ -1872,11 +1877,6 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
     
     return {f"MASTER_LAYOUT_COMBINED_v{version}.svg": "\n".join(lines)}
 
-def run_generation_patch(self):
-    # This is not a real function, just a marker that I need to update the Class Method `run_generation`.
-    pass
-
-
 def set_mac_label(filepath, color_idx):
     """Helper for Mac Labels (Green = 6)"""
     try:
@@ -1887,12 +1887,57 @@ def set_mac_label(filepath, color_idx):
     except:
         pass
 
-def verify_dimensions(svg_paths, config):
+def verify_dimensions(master_svg, config):
     """
-    Verify generated parts against configuration.
-    Returns (True/False, Report String)
+    M1 FIX: real post-generation check on the master layout (regression net for C1).
+    Parses each part's OUTSIDE-CUT perimeter, applies its transform, and asserts that
+    (a) no part has geometry off-sheet (negative coordinates) and (b) no two parts'
+    perimeters overlap. Returns (True/False, human-readable report).
+    Nested elements carry an id suffix (..._OUTSIDE_CUTS_<n>) and are intentionally
+    excluded, since a nested hatch lid legitimately sits inside its parent's window.
     """
-    return True, "Verification Skipped (Robust Mode)"
+    if not isinstance(master_svg, str) or "<svg" not in master_svg:
+        return True, "Verification skipped (no master layout to check)."
+
+    parts = {}
+    for d, tf, pid in re.findall(
+            r'<path d="([^"]*)" [^>]*transform="([^"]*)" id="(\w+_OUTSIDE_CUTS)"', master_svg):
+        nums = [float(x) for x in re.findall(r'-?\d+\.?\d*', d)]
+        if len(nums) < 4:
+            continue
+        tvals = re.findall(r'translate\(([-\d.]+),\s*([-\d.]+)\)', tf)
+        if len(tvals) < 2:
+            continue
+        rotated = 'rotate(90)' in tf
+        (a, b) = float(tvals[0][0]), float(tvals[0][1])
+        (c, e) = float(tvals[1][0]), float(tvals[1][1])
+        pts = list(zip(nums[0::2], nums[1::2]))
+        pts = [(x + c, y + e) for x, y in pts]
+        if rotated:
+            pts = [(-y, x) for x, y in pts]
+        pts = [(x + a, y + b) for x, y in pts]
+        xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
+        parts[pid] = (min(xs), min(ys), max(xs), max(ys))
+
+    if not parts:
+        return True, "Verification: no parts found to check."
+
+    problems = []
+    for k, v in parts.items():
+        if v[0] < -1e-6 or v[1] < -1e-6:
+            problems.append(f"{k} extends off-sheet (min corner {v[0]:.3f}, {v[1]:.3f}).")
+
+    keys = list(parts)
+    for i in range(len(keys)):
+        for j in range(i + 1, len(keys)):
+            A, B = parts[keys[i]], parts[keys[j]]
+            if not (A[2] <= B[0] + 1e-6 or B[2] <= A[0] + 1e-6 or
+                    A[3] <= B[1] + 1e-6 or B[3] <= A[1] + 1e-6):
+                problems.append(f"{keys[i]} overlaps {keys[j]} on the sheet.")
+
+    if problems:
+        return False, "LAYOUT CHECK FAILED:\n  - " + "\n  - ".join(problems)
+    return True, f"Layout check passed: {len(parts)} parts, none off-sheet, no overlaps."
 
 def _get_blender_generator():
     from blender_generator import generate_blender_script, generate_trivision_script
@@ -1905,9 +1950,12 @@ def generate_back_panel_parts(version):
     height_in = convert_to_inches(CONFIG['TOTAL_HEIGHT'])
     
     stock_thk = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-    # Back Panel Rabbet (Perimeter Plug) logic (Unchanged)
-    back_rabbet_w = CONFIG.get('BACK_RABBET_WIDTH', 0.3)
-    rim_width = stock_thk - back_rabbet_w
+    # Back Panel Rabbet (Perimeter Plug) logic.
+    # M5 FIX: prefer the physical rim width (inches); fall back to the legacy proxy.
+    if 'BACK_RIM_WIDTH_IN' in CONFIG:
+        rim_width = CONFIG['BACK_RIM_WIDTH_IN']
+    else:
+        rim_width = stock_thk - CONFIG.get('BACK_RABBET_WIDTH', 0.3)
     if rim_width < 0: rim_width = 0
     inner_w = width_in - (2 * rim_width)
     inner_h = height_in - (2 * rim_width)
@@ -1974,7 +2022,7 @@ def generate_back_panel_parts(version):
         # Generate BACK_PANEL_HOLES (Through for T-nut)
         if hole_positions:
             hp_elements = []
-            hp_elements.append(create_svg_header(canvas_w, canvas_h, f"BACK_PANEL_HOLES"))
+            hp_elements.append(create_svg_header(canvas_w, canvas_h, f"BACK_PANEL_HOLES_THROUGH"))  # L3 FIX: title now matches filename
             for hx, hy in hole_positions:
                 hp_elements.append(create_circle(hx, hy, hole_r, COLOR_HOLES))
             hp_elements.append(create_svg_footer())
@@ -2053,49 +2101,51 @@ def generate_back_panel_parts(version):
         files[f"BACK_PANEL_HATCH_CUT.v{version}.svg"] = "\n".join(cut_elements)
         
         # 4. Generate HATCH_LID (Separate Part)
+        # H7 FIX: shrink the lid outer AND plug by FIT_TOLERANCE so the lid drops into the
+        # nominal shelf recess (previously line-to-line -> unassemblable). The shelf/opening
+        # cut above stays nominal; only the lid loses material.
+        lid_fit = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.254))
+        lid_out_w = hatch_lid_w - lid_fit
+        lid_out_h = hatch_lid_h - lid_fit
+
         # Use standard MARGIN_INCHES so Master Layout logic works uniformly
-        lid_canvas_w = hatch_lid_w + (2 * MARGIN_INCHES)
-        lid_canvas_h = hatch_lid_h + (2 * MARGIN_INCHES)
+        lid_canvas_w = lid_out_w + (2 * MARGIN_INCHES)
+        lid_canvas_h = lid_out_h + (2 * MARGIN_INCHES)
         lx = MARGIN_INCHES
         ly = MARGIN_INCHES
-        
+
         lid_elements = []
         lid_elements.append(create_svg_header(lid_canvas_w, lid_canvas_h, f"BACK_PANEL_HATCH_LID"))
-        
-        # Perimeter (Outer Size of Lid)
-        lid_elements.append(create_rect(lx, ly, hatch_lid_w, hatch_lid_h, COLOR_PERIMETER))
-        
-        # Rabbet (Inner Cut to make the Step)
-        # Lid Flange means we cut a Rabbet around the edge (removing the "bottom" corner).
-        # Inner Rect = Opening Size.
+
+        # Perimeter (Outer Size of Lid, shrunk for fit)
+        lid_elements.append(create_rect(lx, ly, lid_out_w, lid_out_h, COLOR_PERIMETER))
+
+        # Rabbet (Inner Cut to make the Step). Plug = opening - fit so it enters the hole;
+        # flange width is preserved (= flange_w) because both outer and plug shrink equally.
         lid_rab_x = lx + flange_w
         lid_rab_y = ly + flange_w
-        lid_elements.append(create_rect(lid_rab_x, lid_rab_y, hatch_open_w, hatch_open_h, COLOR_RABBETS))
-        
-        # Corner Holes
-        # "four corner holes centered in the rabbets"
-        # The rabbet is `flange_w` wide. Center is `flange_w / 2`.
+        lid_elements.append(create_rect(lid_rab_x, lid_rab_y, hatch_open_w - lid_fit, hatch_open_h - lid_fit, COLOR_RABBETS))
+
+        # Corner Holes centered in the rabbet flange
         corner_offset = flange_w / 2.0
-        # Wait, if flange is small (e.g. 7.5mm - 0.5 = 7mm), hole might be tight.
-        # Just putting points there.
         lid_hole_r = 0.1 # Standard small hole
-        
+
         # Top-Left
         lid_elements.append(create_circle(lx + corner_offset, ly + corner_offset, lid_hole_r, COLOR_HOLES))
         # Top-Right
-        lid_elements.append(create_circle(lx + hatch_lid_w - corner_offset, ly + corner_offset, lid_hole_r, COLOR_HOLES))
+        lid_elements.append(create_circle(lx + lid_out_w - corner_offset, ly + corner_offset, lid_hole_r, COLOR_HOLES))
         # Bot-Left
-        lid_elements.append(create_circle(lx + corner_offset, ly + hatch_lid_h - corner_offset, lid_hole_r, COLOR_HOLES))
+        lid_elements.append(create_circle(lx + corner_offset, ly + lid_out_h - corner_offset, lid_hole_r, COLOR_HOLES))
         # Bot-Right
-        lid_elements.append(create_circle(lx + hatch_lid_w - corner_offset, ly + hatch_lid_h - corner_offset, lid_hole_r, COLOR_HOLES))
-        
+        lid_elements.append(create_circle(lx + lid_out_w - corner_offset, ly + lid_out_h - corner_offset, lid_hole_r, COLOR_HOLES))
+
         lid_elements.append(create_svg_footer())
         files[f"BACK_PANEL_HATCH_LID.v{version}.svg"] = "\n".join(lid_elements)
-        
-        # Store Data for Nesting Logic
+
+        # Store Data for Nesting Logic (actual lid outer size, post-fit)
         hatch_data = {
-            'lid_w': hatch_lid_w,
-            'lid_h': hatch_lid_h,
+            'lid_w': lid_out_w,
+            'lid_h': lid_out_h,
             'svg_content': "\n".join(lid_elements) # Raw content effectively
         }
 
@@ -2458,8 +2508,8 @@ class CarbideOptimizedApp(tk.Tk):
             # Motors / Other
             'motor_enabled': tk.BooleanVar(value=True),
             'motor_x_val': tk.StringVar(value=""),
-            'cable_offset': tk.StringVar(value="3.0"),
-            
+            # M2 FIX: 'cable_offset' var removed — it was never read anywhere.
+
             # Rear Access Panel
             'hatch_enabled': tk.BooleanVar(value=True), # User Request: On by default
             'hatch_width_pct': tk.StringVar(value="50.0"),
@@ -2638,8 +2688,10 @@ class CarbideOptimizedApp(tk.Tk):
                  font=FONT_WARNING, bg=BG_COLOR, fg="#8c8c8c").grid(row=4, column=0, columnspan=5, sticky="w", padx=(5,0), pady=(0, 8))
 
         # Router Bit, Glue Gap
-        # Router Bit is fixed 'in'
-        self.make_row_fixed_unit(dim_frame, 5, "Router Bit", self.vars['tool_primary'], "in")
+        # M2 FIX: geometry is emitted nominal (CAM applies tool compensation), so this value
+        # does not change the SVGs today. Labelled "(reference)" and still written to
+        # config.json for CAM setup, rather than implying it drives the output.
+        self.make_row_fixed_unit(dim_frame, 5, "Router Bit (reference)", self.vars['tool_primary'], "in")
         self.make_row_with_units(dim_frame, 6, "Glue Gap", self.vars['glue_gap'], self.vars['glue_gap_unit'])
 
 
@@ -2700,9 +2752,11 @@ class CarbideOptimizedApp(tk.Tk):
         motor_frame.pack(fill=tk.X, pady=(10, 5))
         tk.Checkbutton(motor_frame, text="Enable Motor Pocket", variable=self.vars['motor_enabled'],
                        bg=BG_COLOR, font=("Lato", 10)).pack(side="left")
-        # Cable Offset
-        tk.Label(motor_frame, text="Cable Offset:", bg=BG_COLOR, font=("Lato", 10)).pack(side="left", padx=(10,0))
-        tk.Entry(motor_frame, textvariable=self.vars['cable_offset'], width=4).pack(side="left")
+        # M2 FIX: Motor Pocket X input. The code already read self.vars['motor_x_val'] but no
+        # widget ever set it, so the pocket always fell back to the ungrounded 0.4155*width.
+        # Blank leaves the auto (centered) fallback. Replaces the never-read Cable Offset field.
+        tk.Label(motor_frame, text="Motor X (mm, blank=auto):", bg=BG_COLOR, font=("Lato", 10)).pack(side="left", padx=(10,0))
+        tk.Entry(motor_frame, textvariable=self.vars['motor_x_val'], width=6).pack(side="left")
 
         # === SECTION 5: REAR ACCESS PANEL ===
         self.make_section_header(left_col, "REAR ACCESS PANEL")
@@ -2772,7 +2826,7 @@ class CarbideOptimizedApp(tk.Tk):
                    command=self.run_generation, font=("Lato", 15, "bold")).pack(pady=20)
 
 
-        tk.Label(container, text="v1.24", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")
+        tk.Label(container, text="v1.26", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")  # L3 FIX: was v1.24, out of sync with header
 
         # Live Updates
         self._setup_live_preview_updates()
@@ -3010,7 +3064,6 @@ class CarbideOptimizedApp(tk.Tk):
                 'window_enabled': True,
                 'window_w': "",
                 'window_h': "",
-                'cable_offset': "3.0",
                 'hatch_enabled': True,
                 'hatch_width_pct': "50.0",
                 'hatch_height_pct': "33.0",
@@ -3028,6 +3081,7 @@ class CarbideOptimizedApp(tk.Tk):
 
     def run_generation(self):
         try:
+            gen_warnings = []  # H6/M3 FIX: surfaced in the success dialog, not just stdout
             raw_out = self.vars['out_folder'].get().strip()
             if not raw_out:
                 raise ValueError("Please select an Output Folder.")
@@ -3077,10 +3131,17 @@ class CarbideOptimizedApp(tk.Tk):
             # Original code said: "Positive = Looser".
             # Let's assume input maps directly to the logic:
             calc_rim_width = stock_thk_in + convert_to_inches(CONFIG['FIT_TOLERANCE']) + fit_adj_in
-            
-            CONFIG['FRONT_RABBET_WIDTH'] = stock_thk_in - calc_rim_width
-            CONFIG['BACK_RABBET_WIDTH'] = stock_thk_in - calc_rim_width
-            
+
+            # M5 FIX: store the physical rim width (inches) directly. The bezel/back panel
+            # generators now read *_RIM_WIDTH_IN. FRONT/BACK_RABBET_WIDTH are retained only
+            # for the Blender generator, which still expects them; note they hold the
+            # doubly-negated proxy (stock - rim), which downstream re-inverts to `rim`.
+            CONFIG['FRONT_RIM_WIDTH_IN'] = calc_rim_width
+            CONFIG['BACK_RIM_WIDTH_IN'] = calc_rim_width
+
+            CONFIG['FRONT_RABBET_WIDTH'] = stock_thk_in - calc_rim_width  # legacy proxy (Blender)
+            CONFIG['BACK_RABBET_WIDTH'] = stock_thk_in - calc_rim_width   # legacy proxy (Blender)
+
             CONFIG['FRONT_RABBET_DEPTH'] = step_depth_in
             CONFIG['BACK_RABBET_DEPTH'] = step_depth_in
             
@@ -3163,11 +3224,36 @@ class CarbideOptimizedApp(tk.Tk):
             if CONFIG['WINDOW_ENABLED']:
                 w_in = get_mm('window_w', 'window_w_unit') / 25.4
                 h_in = get_mm('window_h', 'window_h_unit') / 25.4
-                # Validate
-                w_in = min(w_in, total_w_in - 0.5)
-                h_in = min(h_in, total_h_in - 0.5)
-                CONFIG['WINDOW_WIDTH_IN'] = w_in
-                CONFIG['WINDOW_HEIGHT_IN'] = h_in
+
+                # M3 FIX: window enabled with blank/zero fields parsed to 0.0 and emitted a
+                # degenerate zero-area window path. Treat a non-positive window as disabled.
+                if w_in <= 0 or h_in <= 0:
+                    CONFIG['WINDOW_ENABLED'] = False
+                    CONFIG['WINDOW_WIDTH_IN'] = 0.0
+                    CONFIG['WINDOW_HEIGHT_IN'] = 0.0
+                    gen_warnings.append("Window is enabled but its width/height is blank or zero - window was skipped.")
+                else:
+                    # Clamp to panel extents (existing guard).
+                    w_in = min(w_in, total_w_in - 0.5)
+                    h_in = min(h_in, total_h_in - 0.5)
+
+                    # H6 FIX: the structural bezel plug is only (total - 2*rim) wide, where
+                    # rim = stock + glue gap + lid-fit adjustment (calc_rim_width, above). A
+                    # window wider than the plug cuts the plug ring away and leaves a fragile
+                    # half-stock frame. Warn (do not silently resize) so the user decides.
+                    plug_w = total_w_in - (2 * calc_rim_width)
+                    plug_h = total_h_in - (2 * calc_rim_width)
+                    if w_in > plug_w - 0.5:
+                        gen_warnings.append(
+                            f"Window width {w_in:.3f}\" meets/exceeds the bezel plug ({plug_w:.3f}\") - "
+                            f"little or no full-thickness plug will remain around the window.")
+                    if h_in > plug_h - 0.5:
+                        gen_warnings.append(
+                            f"Window height {h_in:.3f}\" meets/exceeds the bezel plug ({plug_h:.3f}\") - "
+                            f"little or no full-thickness plug will remain around the window.")
+
+                    CONFIG['WINDOW_WIDTH_IN'] = w_in
+                    CONFIG['WINDOW_HEIGHT_IN'] = h_in
             else:
                 CONFIG['WINDOW_WIDTH_IN'] = 0.0
                 CONFIG['WINDOW_HEIGHT_IN'] = 0.0
@@ -3177,15 +3263,20 @@ class CarbideOptimizedApp(tk.Tk):
             CONFIG['FRONT_RIM_WIDTH_M'] = rim_w_in * 0.0254
             
             # Motor Pocket X
+            # M2 NOTE: 0.4155 is an UNVERIFIED legacy constant with no cited source. It is only
+            # the fallback when the Motor X field (now wired, see UI) is left blank. The expert
+            # reference build mounts motors on a station plate, not a single rail pocket
+            # (see "Trivision expert-file lessons"). Left as-is to avoid changing existing
+            # output; revisit when the motor feature is reworked.
             photograph_width = CONFIG['TOTAL_WIDTH'] - (2 * CONFIG['STOCK_THICKNESS'])
             user_x = self.vars['motor_x_val'].get().strip()
             if user_x:
                 try:
                     CONFIG['MOTOR_POCKET_X'] = float(user_x)
                 except:
-                    CONFIG['MOTOR_POCKET_X'] = 0.4155 * photograph_width
+                    CONFIG['MOTOR_POCKET_X'] = 0.4155 * photograph_width  # unverified legacy fallback
             else:
-                CONFIG['MOTOR_POCKET_X'] = 0.4155 * photograph_width
+                CONFIG['MOTOR_POCKET_X'] = 0.4155 * photograph_width  # unverified legacy fallback
 
             out_path = Path(raw_out)
             out_path.mkdir(parents=True, exist_ok=True)
@@ -3304,17 +3395,19 @@ class CarbideOptimizedApp(tk.Tk):
             with open(final_out_dir / "config.json", "w", encoding='utf-8') as f:
                 json.dump(CONFIG, f, indent=4) # Indent for readability
 
-            # VERIFY DIMENSIONS (v1.16/v1.22)
-            SVG_PATHS = {
-                'TOP_RAIL': rail_paths.get('TOP', 'M 0 0 Z'),
-                'BOTTOM_RAIL': rail_paths.get('BOTTOM', 'M 0 0 Z'),
-                'LEFT_RAIL': rail_paths.get('LEFT', 'M 0 0 Z'),
-                'RIGHT_RAIL': rail_paths.get('RIGHT', 'M 0 0 Z'),
-            }
-            passed, report = verify_dimensions(SVG_PATHS, CONFIG)
-            
-            messagebox.showinfo("Success", f"Generation Complete!\n\nVersion: v{next_ver}\nLocation: {final_out_dir}\n\n{report}")
+            # VERIFY DIMENSIONS (M1 FIX: check the actual master layout, not a stub)
+            passed, report = verify_dimensions(all_files.get(master_key), CONFIG)
+
+            warn_block = ""
+            if gen_warnings:
+                warn_block = "\n\nWARNINGS:\n- " + "\n- ".join(gen_warnings)
+
+            box = messagebox.showwarning if (gen_warnings or not passed) else messagebox.showinfo
+            box("Success" if passed else "Generation Complete (check warnings)",
+                f"Generation Complete!\n\nVersion: v{next_ver}\nLocation: {final_out_dir}\n\n{report}{warn_block}")
             print(report)
+            for w in gen_warnings:
+                print("WARNING:", w)
 
         except Exception as e:
             import traceback

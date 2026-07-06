@@ -38,7 +38,9 @@ This log tracks all user specifications and requirements. Before making any chan
 - **Details**: Cut on inside face, half-stock depth (~0.295")
 - **Purpose**: Creates visible inside edge when panel is inset into frame (matches BACK_Body behavior)
 - **Verification**: Body should have ~15 faces (with both window and rabbet)
-- **Status**: ACTIVE
+- **Status**: SUPERSEDED (2026-07-06) — the fixed-5/16" rabbet was replaced by the v48+ stepped-plug
+  design: the plug rim = stock + glue gap + lid-fit adjustment (see `generate_front_bezel_parts`
+  / `FRONT_RIM_WIDTH_IN`). Kept for history; do not conflict-check current code against the 5/16" value.
 
 ### SPEC-006: FRONT_Body Position (Inset)
 
@@ -55,7 +57,15 @@ This log tracks all user specifications and requirements. Before making any chan
 - **Rabbet width**: 0.2781" (per SVG)
 - **Rabbet depth**: ~0.295" (half stock, to receive panel rabbets)
 - **Purpose**: Creates pocket for FRONT and BACK panels to nestle into
-- **Status**: ACTIVE
+- **Status**: SUPERSEDED (2026-07-06) — from v48 the rails DO NOT carry receiving rabbets
+  (see `generate_rail_parts`, "v48 UPDATE: Rails DO NOT have rabbets"). The panels self-register
+  via the stepped plug instead. Kept for history.
+
+### SPEC-008/009 note (2026-07-06)
+
+Blender viewport `clip_start` is now 0.001m per SPEC-008 (was 0.01m). SPEC-009 specifies scene
+exposure 2.5, but `blender_generator.py` sets 4.0; this is flagged in-code and left for a
+deliberate decision (update the spec or set the code to 2.5) rather than changed silently.
 
 ### SPEC-005: Material Appearance - Baltic Birch
 
