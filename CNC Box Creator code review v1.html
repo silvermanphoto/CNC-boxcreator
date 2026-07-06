@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CNC Box Creator — Code Review v1</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         font-size: 17px; line-height: 1.55; color: #222; background: #fbfaf8;
+         max-width: 880px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 30px; line-height: 1.2; border-bottom: 3px solid #d97757; padding-bottom: 10px; }
+  h2 { font-size: 23px; margin-top: 44px; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
+  h3 { font-size: 18px; margin-top: 34px; padding: 8px 12px; border-radius: 6px; }
+  h3.crit { background: #fbe9e7; border-left: 5px solid #c62828; }
+  h3.high { background: #fff3e0; border-left: 5px solid #ef6c00; }
+  h3.med  { background: #fffde7; border-left: 5px solid #f9a825; }
+  h3.low  { background: #eceff1; border-left: 5px solid #78909c; }
+  code { background: #efece7; padding: 1px 5px; border-radius: 4px;
+         font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 15px; }
+  pre { background: #2d2a26; color: #eee8dd; padding: 14px 16px; border-radius: 8px;
+        overflow-x: auto; font-size: 14px; line-height: 1.45; }
+  pre code { background: none; color: inherit; padding: 0; font-size: 14px; }
+  ul, ol { padding-left: 26px; }
+  li { margin: 5px 0; }
+  p { margin: 10px 0; }
+  strong { color: #111; }
+</style>
+</head>
+<body>
+<h1>Code Review — CNC Box Creator (cnc_generator.py + blender_generator.py)</h1>
+<p><strong>Verdict:</strong> FIX-FIRST — the master CAM layout (the file actually milled from) provably overlaps parts and mislabels cut types in the current shipped output, and two realistic config combinations crash generation outright.</p>
+<p><strong>Counts:</strong> Critical 3 · High 7 · Medium 7 · Low 4</p>
+<p><strong>Basis:</strong> Intent inferred from code + <code>USER_SPECIFICATIONS.md</code>: a parametric shadowbox generator emitting per-part SVGs, a combined <code>MASTER_LAYOUT_COMBINED_v*.svg</code> for Carbide Create CAM (color/name = toolpath type), and Blender/TriVision visualization scripts. Stack inferred: Python 3 (venv), Tkinter + matplotlib GUI, Blender 4.x target. <strong>Live-lineage assumption:</strong> the review target is <code>Gemini McTell CNC Plans/cnc_generator.py</code> (header v1.25, modular) + <code>blender_generator.py</code> + <code>utils.py</code> + <code>generate_headless.py</code> — evidence: the newest output (<code>McTell SVGs v134</code>) embeds v1.25 markers, <code>generate_headless.py</code> imports <code>cnc_generator</code>, and <code>cnc_generator_settings.json</code> (newest mtime) matches its settings schema. The higher-numbered monoliths (<code>CNC GENERATOR - CARBIDE-OPTIMIZED v1.26–v1.29.py</code>, Jan 27–28) and <code>cnc_v1_11/12.py</code> are treated as abandoned parallel tracks. No code was executed; the GUI was not run — every runtime claim below is either traced statically or verified against the shipped v134 artifacts, and is tagged accordingly.</p>
+<p><strong>Scope:</strong> Reviewed in full: <code>cnc_generator.py</code> (3,330 lines), <code>blender_generator.py</code> (1,979), <code>utils.py</code>, <code>generate_headless.py</code>, <code>verify_encasement.py</code>, <code>test_gen.py</code>, <code>test_layout.py</code>, plus <code>McTell SVGs v134/</code> outputs (<code>MASTER_LAYOUT_COMBINED_v134.svg</code>, <code>OPEN_ME_IN_BLENDER.v134.py</code>, <code>config.json</code>) as ground truth. Deliberately skipped: <code>ARCHIVED PYTHON CODE/</code>, the v1.26–v1.29 monoliths, <code>cnc_v1_11/12.py</code>, <code>PROJECT CLOSET/</code>, the frozen <code>.app</code>, binary assets (<code>.c2d</code>, <code>.ai</code>, <code>.STEP</code>), and generated output folders other than v134 — superseded, frozen, or non-source.</p>
+<p>All paths below are relative to <code>Gemini McTell CNC Plans/</code> unless noted.</p>
+<h2>Triage (fix in this order)</h2>
+<ul>
+<li>[C1] CRITICAL — Master layout packs rails without finger overhang: parts overlap and go off-sheet — cnc_generator.py:1514–1524</li>
+<li>[C2] CRITICAL — Hatch shelf pockets classified as through-cuts in master layout — cnc_generator.py:1703, 1789</li>
+<li>[C3] CRITICAL — <code>element_counts</code> NameError crashes generation when hatch lid nests inside window — cnc_generator.py:1857</li>
+<li>[H1] HIGH — Hatch-lid rabbet step and screw holes classified as OUTSIDE CUTS in master layout — cnc_generator.py:1695</li>
+<li>[H2] HIGH — Countersink files classified as through-holes: <code>"HOLES"</code> rule shadows <code>"HOLES_CSINK"</code> — cnc_generator.py:1698–1700</li>
+<li>[H3] HIGH — Blender script: cleat/hatch sections compare bool to <code>'True'</code>, never render; <code>BOTTOM_HATCH_*</code> keys never emitted — blender_generator.py:738, 811, 912, 138–163</li>
+<li>[H4] HIGH — Blender script: <code>half_d</code>/<code>half_h</code> used ~200 lines before definition (crashes once H3 is fixed) — blender_generator.py:775–806, 868, 938 vs 980–982</li>
+<li>[H5] HIGH — <code>GLUE_GAP</code> read in 3 places but never written: bottom-hatch flange ignores the UI glue gap — cnc_generator.py:966, 1110, 1601</li>
+<li>[H6] HIGH — Window size never validated against the bezel plug: v134 output has a 13.0" window on a 12.803" plug — cnc_generator.py:3167–3168</li>
+<li>[H7] HIGH — Hatch lids are line-to-line with their recesses: zero fit clearance on both hatches — cnc_generator.py:2004–2005, 1158–1159</li>
+<li>[M1] MEDIUM — <code>verify_dimensions</code> is a stub that always passes, but the success dialog presents it as a verification result — cnc_generator.py:1890–1895</li>
+<li>[M2] MEDIUM — Dead controls: Router Bit affects nothing; Motor X has no UI input (always <code>0.4155 ×</code> interior width, ungrounded); Cable Offset never read — cnc_generator.py:3056, 3181–3188, 2705</li>
+<li>[M3] MEDIUM — Window enabled with empty size fields emits a degenerate zero-size window path (the GUI default state) — cnc_generator.py:3164–3170</li>
+<li>[M4] MEDIUM — Blender script reads <code>HATCH_RAISE</code>, app writes <code>HATCH_RAISE_IN</code>: raise always 0 in viz — blender_generator.py:160</li>
+<li>[M5] MEDIUM — CONFIG mixes mm and inches per key; <code>FRONT/BACK_RABBET_WIDTH</code> is a negative inches value; headless run silently uses a different rabbet default — cnc_generator.py:3079–3082, generate_headless.py</li>
+<li>[M6] MEDIUM — Spec drift: SPEC-004/007 (rabbets) no longer match the v48+ plug design; Blender variant violates SPEC-008 (clip 0.01 vs 0.001) and SPEC-009 (exposure 4.0 vs 2.5) — blender_generator.py:1050, 1066</li>
+<li>[M7] MEDIUM — Both test scripts target stale or nonexistent files: zero coverage of the live module — test_gen.py:15, test_layout.py:14</li>
+<li>[L1] LOW — Dead/duplicated code: two <code>compute_finger_layout</code> defs, unreachable layer-map branches, unused <code>BOTTOM ACCESS</code> buffers, marker function — cnc_generator.py:467/521, 1696/1704, 1716–1717, 1875</li>
+<li>[L2] LOW — BinPacker 48×96 expansion never reverts on failure; sheet stays 96" tall for all later items — cnc_generator.py:1245–1263</li>
+<li>[L3] LOW — UI shows "v1.24" while the header says v1.25; <code>BACK_PANEL_HOLES_THROUGH</code> file titled <code>BACK_PANEL_HOLES</code> — cnc_generator.py:2775, 1977/1981</li>
+<li>[L4] LOW — Auto-installer retries pip with <code>--break-system-packages</code> on system Python — cnc_generator.py:71–75</li>
+</ul>
+<h2>Findings</h2>
+<h3 class="crit">[C1] CRITICAL — Master layout packs rails without finger overhang: parts overlap and go off-sheet</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:1514–1524 (<code>generate_master_carbide_layout</code> → <code>prepare_part</code> calls); root cause interaction with <code>generate_perimeter_with_fingers</code> (fingers protrude <code>stock_thk − fit_tol</code> beyond each rail end, cnc_generator.py:692–695)</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> Horizontal rails are packed as <code>w = TOTAL_WIDTH − 2·stock</code> (line 1519), but their drawn geometry extends <code>stock − fit_tol</code> beyond each end (the corner fingers). The BinPacker places neighbors <code>GAP = 0.5"</code> apart based on the understated width, and the placement transform maps the part body — not its true bounding box — to the packed cell.</li>
+<li><strong>Impact:</strong> Proven in the shipped v134 output: TOP rail occupies x −0.098→13.902; BOTTOM rail occupies x 13.205→27.205 — the two rails' red OUTSIDE-CUT paths overlap by 0.697", and TOP's left fingers sit at negative x, off the 48×48 sheet. Milling this file as-is cuts each rail's corner fingers through the neighboring rail and clips the leftmost finger off the stock. Any box whose <code>stock_thk &gt; GAP/2</code> (i.e., any stock ≥ ~6.4 mm) with two rails on one shelf reproduces this.</li>
+<li><strong>Fix:</strong> Pack rails with their true extents and offset content so the true bbox origin maps to the cell. Minimal version — inflate the packed dims and shift the transform:</li>
+</ul>
+<p>  ```diff</p>
+<p>  -    w_topbot = total_w - (2 * stock_thk)</p>
+<p>  -    parts_to_pack.append(prepare_part("TOP", f_top, w_topbot, box_d))</p>
+<p>  -    parts_to_pack.append(prepare_part("BOTTOM", f_bot, w_topbot, box_d))</p>
+<p>  +    fit_tol_in = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.254))</p>
+<p>  +    overhang = stock_thk - fit_tol_in           # finger protrusion per side</p>
+<p>  +    w_topbot = (total_w - (2 * stock_thk)) + (2 * overhang)</p>
+<p>  +    parts_to_pack.append(prepare_part("TOP", f_top, w_topbot, box_d, extra_id={'x_shift': overhang}))</p>
+<p>  +    parts_to_pack.append(prepare_part("BOTTOM", f_bot, w_topbot, box_d, extra_id={'x_shift': overhang}))</p>
+<p>  ```</p>
+<p>  and in the transform construction (lines 1678–1681), add the shift so the leftmost finger lands at <code>global_x</code>: unrotated <code>translate({global_x + x_shift}, {global_y}) translate(-2,-2)</code>, rotated <code>translate({global_x + part_h}, {global_y + x_shift}) rotate(90) translate(-2,-2)</code> where <code>x_shift = part.get('extra', {}).get('x_shift', 0)</code>. A more robust structural fix: compute each part's true bbox by scanning its path coordinates (the paths are plain <code>M/L</code> lists) and pack on that — 10 lines, immune to future geometry changes.</p>
+<ul>
+<li><strong>Confidence:</strong> CONFIRMED — parse <code>McTell SVGs v134/MASTER_LAYOUT_COMBINED_v134.svg</code>, apply each <code>&lt;path&gt;</code>'s transform to its coordinates: TOP x-range [−0.0984, 13.9016] intersects BOTTOM x-range [13.2048, 27.2048].</li>
+</ul>
+<h3 class="crit">[C2] CRITICAL — Hatch shelf pockets classified as through-cuts in master layout</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:1703 (<code>get_layer_type_v11</code>: <code>"HATCH_CUT"</code> → <code>CONTOUR (Inside)</code>), 1789 (dead special-case: <code>"BOTTOM_HATCH_CUT" in fname</code> never matches <code>BOTTOM_RAIL_HATCH_CUT</code>)</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> <code>BACK_PANEL_HATCH_CUT</code> and <code>BOTTOM_RAIL_HATCH_CUT</code> files each contain two rects: the through-opening (red) and the shelf pocket (orange). In the master layout, the whole file maps by filename to <code>CONTOUR (Inside)</code> → both rects land in the <code>INSIDE WINDOW</code> bucket, same red color, one combined path. The branch meant to split them (index 0 → <code>BOTTOM ACCESS CUT</code>, index 1 → <code>BOTTOM ACCESS RABBET</code>, lines 1789–1809) tests for the substring <code>"BOTTOM_HATCH_CUT"</code>, which the actual filename <code>BOTTOM_RAIL_HATCH_CUT</code> does not contain — verified: <code>'BOTTOM_HATCH_CUT' in 'BOTTOM_RAIL_HATCH_CUT.v134.svg'</code> is <code>False</code>. The <code>BOTTOM ACCESS CUT</code>/<code>BOTTOM ACCESS RABBET</code> buffers (1716–1717) are never populated.</li>
+<li><strong>Impact:</strong> With the rear access panel enabled — the GUI default — the master layout tells the CAM user to through-cut the shelf outline. That cuts a hole the size of the *lid* in the back panel, destroying the shelf the lid rests on; the lid then falls through. Same for the bottom hatch on the bottom rail. The per-part SVGs are correct; only the green-labeled master (the primary CAM file) is wrong.</li>
+<li><strong>Fix:</strong> Make the split keyed on the generic hatch-cut name and drive it before the generic bucket logic:</li>
+</ul>
+<p>  ```diff</p>
+<p>  -                    if "BOTTOM_HATCH_CUT" in fname: # Actually RAIL_NAME_HATCH_CUT</p>
+<p>  +                    if "HATCH_CUT" in fname:  # BACK_PANEL_HATCH_CUT / BOTTOM_RAIL_HATCH_CUT</p>
+<p>  ```</p>
+<p>  so index 0 (opening) goes to the through-cut bucket and index 1 (shelf) to the rabbet/pocket bucket, for both hatches. Also remove <code>"HATCH_CUT"</code> from <code>get_layer_type_v11</code>'s early return or keep it only as the routing key — the per-index split must decide the bucket, not the filename. <code>depends on [C3]</code> only in the sense that both live in the same render loop; fixes are independent.</p>
+<ul>
+<li><strong>Confidence:</strong> CONFIRMED — code path traced; substring mismatch verified in Python. To observe: enable Rear Access Panel, generate, inspect <code>MASTER_LAYOUT_COMBINED_v*.svg</code> — the shelf rect appears in the <code>*_INSIDE_WINDOW</code> path, not a rabbet path.</li>
+</ul>
+<h3 class="crit">[C3] CRITICAL — <code>element_counts</code> NameError crashes generation when hatch lid nests inside window</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:1857–1858 (<code>generate_master_carbide_layout</code>, nested-hatch render branch)</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> The nested-hatch branch (taken when <code>WINDOW_ENABLED</code> and the rear-hatch lid is smaller than the window minus 0.5", lines 1541–1548) references <code>element_counts</code>, which is not defined anywhere in the module — the only two occurrences are the read at 1857 and the subscript-assign at 1858 (grep-verified). First execution raises <code>NameError</code>.</li>
+<li><strong>Impact:</strong> The exception propagates out of <code>generate_master_carbide_layout</code> into <code>run_generation</code>'s catch-all before any file is written: the user gets an error dialog and <strong>zero output files</strong>. Concrete repro with Joel's current saved settings (14×14 box, 13×13 window): re-enabling the rear access panel yields a lid of ~8.1×5.2" &lt; 12.5×12.5" → nested → crash. So the two rear-hatch paths are: not-nested → C2/H1 (silently wrong master), nested → total failure.</li>
+<li><strong>Fix:</strong> The counter only disambiguates element ids. Initialize it at the top of the part loop:</li>
+</ul>
+<p>  ```diff</p>
+<p>       # Render Nested Hatch</p>
+<p>       if part.get('nested_hatch'):</p>
+<p>           h_data = part['nested_hatch']</p>
+<p>  +        element_counts = {}</p>
+<p>  ```</p>
+<p>  (or drop the counter and reuse the buffered-path id scheme used ten lines above).</p>
+<ul>
+<li><strong>Confidence:</strong> CONFIRMED — name never bound in any enclosing scope; Python semantics guarantee the NameError. Repro: settings above, click GENERATE, observe error dialog and empty output folder.</li>
+</ul>
+<h3 class="high">[H1] HIGH — Hatch-lid rabbet step and screw holes classified as OUTSIDE CUTS in master layout</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:1695 (<code>get_layer_type_v11</code>: <code>"HATCH_LID"</code> → <code>CONTOUR (Outside)</code>), applied to <code>BACK_PANEL_HATCH_LID.*.svg</code> (built at 2062–2093) and <code>BOTTOM_RAIL_HATCH_LID.*.svg</code> (1167–1191)</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> Each lid SVG contains three element types: outer perimeter (red), inner rabbet step (orange), four corner holes (blue). The master layout classifies per *file*, so all elements — including the rabbet rect and the holes — are merged into the single magenta <code>OUTSIDE CUTS</code> path.</li>
+<li><strong>Impact:</strong> Following the master layout's layer semantics, the lid's rabbet step is contour-cut through (severing the flange from the plug — the lid falls apart) and the corner screw holes are cut as outside profiles. Triggers on the same default-on rear-hatch path as C2.</li>
+<li><strong>Fix:</strong> Classify per element, not per file, for lid files: route each extracted <code>d</code> by the source element's stroke color (the per-part files already encode semantics in <code>COLOR_PERIMETER/_RABBETS/_HOLES</code>). Extract <code>stroke="..."</code> in <code>get_d_from_tag</code>'s caller and map <code>#ff0000→OUTSIDE CUTS</code>, <code>#e09500→RABBET</code>, <code>#0000ff→HOLE</code> when <code>"HATCH_LID" in fname</code>. This also future-proofs any other mixed-content file.</li>
+<li><strong>Confidence:</strong> CONFIRMED — traced; the lid file provably contains three colors and the filename rule returns one bucket. Observe by enabling the rear hatch and inspecting <code>*_HATCH_LID</code> geometry inside the <code>*_OUTSIDE_CUTS</code> path of the master.</li>
+</ul>
+<h3 class="high">[H2] HIGH — Countersink files classified as through-holes: <code>"HOLES"</code> rule shadows <code>"HOLES_CSINK"</code></h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:1698–1700 (<code>get_layer_type_v11</code>)</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> The check order is <code>"HOLES_THROUGH"</code>, then <code>"HOLES"</code>, then <code>"HOLES_CSINK"</code>. <code>CLEAT_WALL_HOLES_CSINK.v*.svg</code> contains <code>"HOLES"</code>, so it returns <code>HOLES (Inside)</code> at line 1698; the CSINK→POCKET rule at 1700 is unreachable (verified: <code>'HOLES' in 'CLEAT_WALL_HOLES_CSINK.v134.svg'</code> is <code>True</code>).</li>
+<li><strong>Impact:</strong> With cleats enabled (GUI default), the master layout puts the 0.375"-diameter countersink circles in the same cyan through-<code>HOLE</code> path as the 0.188" pilot holes. CAM per the layer drills 0.375" holes through both cleats instead of milling 0.175"-deep countersink pockets — screw heads have nothing to bear on.</li>
+<li><strong>Fix:</strong></li>
+</ul>
+<p>  ```diff</p>
+<p>                   if "HOLES_THROUGH" in fname: return '02_HOLES', 'HOLES (Inside)'</p>
+<p>  -                if "HOLES" in fname: return '02_HOLES', 'HOLES (Inside)'</p>
+<p>  -                if "RABBETS" in fname: return '03_RABBETS', 'POCKET'</p>
+<p>                   if "HOLES_CSINK" in fname: return '04_POCKETS', 'POCKET'</p>
+<p>  +                if "HOLES" in fname: return '02_HOLES', 'HOLES (Inside)'</p>
+<p>  +                if "RABBETS" in fname: return '03_RABBETS', 'POCKET'</p>
+<p>  ```</p>
+<p>  (most-specific substring first).</p>
+<ul>
+<li><strong>Confidence:</strong> CONFIRMED — substring shadowing verified; enable cleats, generate, and check that <code>CLEAT_*_HOLES_CSINK</code> geometry lands in the <code>*_HOLE</code> cyan path of the master.</li>
+</ul>
+<h3 class="high">[H3] HIGH — Blender script: cleat/hatch sections compare bool to <code>'True'</code>, never render; <code>BOTTOM_HATCH_*</code> keys never emitted</h3>
+<ul>
+<li><strong>Where:</strong> blender_generator.py:738, 811, 912 (template conditions), 156–157 (bool emission <code>str(config.get('CLEATS_ENABLED', True))</code>), 138–163 (emitted CONFIG block omits <code>BOTTOM_HATCH_ENABLED/WIDTH/HEIGHT/X_PCT</code>)</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> The emitted script's CONFIG holds Python bool literals (<code>'CLEATS_ENABLED': False</code> in the shipped v134 script), but the feature gates test <code>CONFIG.get('CLEATS_ENABLED', 'True') == 'True'</code>. <code>True == 'True'</code> is always <code>False</code>. Additionally the bottom-hatch keys are never written into the emitted CONFIG at all, so that gate reads its <code>'False'</code> default.</li>
+<li><strong>Impact:</strong> French cleats, the rear hatch, and the bottom hatch never appear in the Blender visualization regardless of settings — the viz silently misrepresents the design (the tool's whole purpose). Verified in <code>McTell SVGs v134/OPEN_ME_IN_BLENDER.v134.py</code> lines 56–57 vs 638/711/812.</li>
+<li><strong>Fix:</strong> In the template, test truthiness: <code>if CONFIG.get('CLEATS_ENABLED', False):</code> (same for both hatches), and add the four <code>BOTTOM_HATCH_*</code> entries to the emitted CONFIG block. <code>depends on [H4]</code> — fixing this alone exposes the NameError below.</li>
+<li><strong>Confidence:</strong> CONFIRMED — shipped-script text shows bool literals and string comparisons.</li>
+</ul>
+<h3 class="high">[H4] HIGH — Blender script: <code>half_d</code>/<code>half_h</code> used ~200 lines before definition</h3>
+<ul>
+<li><strong>Where:</strong> blender_generator.py:775, 785, 806 (cleats), 868, 899, 908 (bottom hatch), 938, 947 (rear hatch) — all before the definitions at 980–982 (<code>half_w/half_h/half_d</code> in section 6)</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> Sections 5b/5c/5d of the generated <code>create_shadowbox_assembly()</code> compute positions from <code>half_d</code>/<code>half_h</code>, which are defined only in section 6. Currently unreachable solely because of H3's always-False gates.</li>
+<li><strong>Impact:</strong> Once H3 is fixed, any run with cleats or a hatch enabled raises <code>NameError: name 'half_d' is not defined</code> inside Blender and aborts the assembly build.</li>
+<li><strong>Fix:</strong> Move the three lines <code>half_w = total_w / 2; half_h = total_h / 2; half_d = box_d / 2</code> up to just after the <code>stock_thk/total_w/total_h/box_d</code> reads (template line ~672), before section 5b. The TriVision variant already defines them before use (blender_generator.py:1878–1879 region) — mirror that ordering.</li>
+<li><strong>Confidence:</strong> CONFIRMED — definition order provable from the emitted script (first use line 675, definition line 882 in <code>OPEN_ME_IN_BLENDER.v134.py</code>). Runtime check: fix H3, enable cleats, run the script in Blender.</li>
+</ul>
+<h3 class="high">[H5] HIGH — <code>GLUE_GAP</code> read in 3 places but never written: bottom-hatch flange ignores the UI glue gap</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:966 (dead local), 1110 (bottom-hatch flange), 1601 (master-layout lid packing dims); the rear hatch uses <code>FIT_TOLERANCE</code> instead at 2001</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> <code>run_generation</code> maps the GUI "Glue Gap" field to <code>CONFIG['FIT_TOLERANCE']</code> (3058). Nothing ever sets <code>CONFIG['GLUE_GAP']</code> (grep-verified across the module and <code>generate_headless.py</code>), so the bottom-hatch flange is always <code>stock/2 − 0.5 mm</code> regardless of input, while the rear-hatch flange is <code>stock/2 − FIT_TOLERANCE</code>.</li>
+<li><strong>Impact:</strong> With Joel's saved glue gap of 0: rear-hatch flange 0.299", bottom-hatch flange 0.279" — a phantom 0.5 mm divergence between two features that the UI presents as governed by one parameter. Any glue-gap tuning the user does has no effect on the bottom hatch.</li>
+<li><strong>Fix:</strong> Replace the three <code>CONFIG.get('GLUE_GAP', 0.5)</code> reads with <code>CONFIG.get('FIT_TOLERANCE', 0.5)</code> (and delete the dead local at 966), or set <code>CONFIG['GLUE_GAP'] = CONFIG['FIT_TOLERANCE']</code> in <code>run_generation</code>. One source of truth either way.</li>
+<li><strong>Confidence:</strong> CONFIRMED — grep shows reads only; writes absent.</li>
+</ul>
+<h3 class="high">[H6] HIGH — Window size never validated against the bezel plug: v134 output has a 13.0" window on a 12.803" plug</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:3167–3168 (clamp only against <code>total − 0.5</code>); plug inner rect computed at 857–863</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> The window may be up to <code>TOTAL_WIDTH − 0.5"</code>, but the bezel's structural plug is only <code>TOTAL_WIDTH − 2·(stock + glue gap)</code> wide. Nothing checks the window against the plug. In the shipped v134 config (14×14 box, 15.2 mm stock, gap 0): plug inner = 12.803", window = 13.0".</li>
+<li><strong>Impact:</strong> The window cut is wider than the plug boundary, so the through-cut swallows the entire plug ring: what remains of the front bezel is a 0.5"-wide frame that lies entirely within the half-depth rabbet ring — i.e., a fragile 0.5"-wide, half-stock-thick ring with no full-thickness plug to register the bezel in the box. Silent: no warning was printed for the v134 run.</li>
+<li><strong>Fix:</strong> After computing <code>w_in/h_in</code> (3164–3168), clamp or warn against the plug:</li>
+</ul>
+<p>  ```python</p>
+<p>  rim = stock_thk_in + convert_to_inches(CONFIG['FIT_TOLERANCE']) + fit_adj_in</p>
+<p>  max_win_w = total_w_in - 2*rim - 0.5   # keep &gt;=0.25" of plug per side</p>
+<p>  if w_in &gt; max_win_w: warn/clamp (same for height)</p>
+<p>  ```</p>
+<p>  Surface it in the GUI status area, not just stdout.</p>
+<ul>
+<li><strong>Confidence:</strong> CONFIRMED that the shipped config produces window &gt; plug (arithmetic from <code>McTell SVGs v134/config.json</code>); SUSPECTED on intent — if Joel deliberately wants a face-frame-only bezel, downgrade to a warning rather than a clamp. Check with him before choosing clamp vs. warn.</li>
+</ul>
+<h3 class="high">[H7] HIGH — Hatch lids are line-to-line with their recesses: zero fit clearance on both hatches</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:2004–2005 (rear lid = opening + 2·flange), 2047–2048 (shelf = same), 2066/2073 (lid outer/plug rects); bottom hatch mirrors it at 1120–1121 vs 1158–1159 and 1171/1177</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> Lid outer = shelf outer exactly; lid plug = opening exactly. The glue gap is subtracted from the *flange width* (per the quoted user formula "wide = 1/2 the stock thickness − the glue gap") but no clearance is ever applied between lid and recess, unlike the finger joints which shrink males by <code>FIT_TOLERANCE</code>.</li>
+<li><strong>Impact:</strong> CAM-accurate cuts produce a lid that cannot physically drop into its shelf recess (0.000" clearance on all four sides) and a plug that cannot enter its opening. Every hatch lid needs hand-fitting, defeating the app's measured-fit purpose.</li>
+<li><strong>Fix:</strong> Shrink the lid, keep the recess nominal: lid outer = <code>shelf − FIT_TOLERANCE</code> per side pair, lid plug = <code>opening − FIT_TOLERANCE</code>; i.e. in the lid rect calls subtract <code>fit_tol</code> from widths/heights and add <code>fit_tol/2</code> to x/y. Apply identically to both hatches (share a helper — the two blocks are already near-duplicates drifting apart, see H5).</li>
+<li><strong>Confidence:</strong> CONFIRMED dimensionally (expressions provably equal); the physical no-fit consequence is standard machining practice, not run-verified.</li>
+</ul>
+<h3 class="med">[M1] MEDIUM — <code>verify_dimensions</code> is a stub that always passes</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:1890–1895; consumed at 3314–3316</li>
+<li><strong>Category:</strong> robustness</li>
+<li><strong>Problem:</strong> Returns <code>(True, "Verification Skipped (Robust Mode)")</code> unconditionally; the success dialog then shows this string as if a check ran.</li>
+<li><strong>Impact:</strong> The one guard that could have caught C1's overlapping rails is a no-op, while the UI implies verification happened.</li>
+<li><strong>Fix:</strong> Either implement the minimal real check (parse each part's path extents; assert pairwise non-overlap and non-negative coordinates in the master — the same ~15 lines as the C1 acceptance check) or change the dialog to omit the report line. Prefer the former; it is the regression net for C1.</li>
+<li><strong>Confidence:</strong> CONFIRMED.</li>
+</ul>
+<h3 class="med">[M2] MEDIUM — Dead controls: Router Bit affects nothing; Motor X has no UI input; Cable Offset never read</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:3056 (<code>TOOL_D_PRIMARY</code> written, never read anywhere — grep-verified), 2460/3181 (<code>motor_x_val</code> variable exists, no row widget created), 2461/2705 (<code>cable_offset</code> entry rendered, never consumed), 3186–3188 (fallback <code>0.4155 × photograph_width</code>)</li>
+<li><strong>Category:</strong> grounding | robustness</li>
+<li><strong>Problem:</strong> Three inputs the user can see (or expects) have no effect: the Router Bit diameter is stored and dumped to config.json only; Motor Pocket X can never be entered (the row was never built), so the pocket always lands at the magic fraction <code>0.4155</code> of interior width — a constant with no cited source; Cable Offset is an orphan entry.</li>
+<li><strong>Impact:</strong> User adjusts Router Bit expecting kerf-aware geometry and gets identical output; motor pocket position is uncontrollable and unexplained. (Motor pocket size 42 mm / pattern 31 mm do trace to NEMA-17 — those are fine.)</li>
+<li><strong>Fix:</strong> Decide per control: if SVGs are nominal-by-design (CAM applies compensation), remove the Router Bit field or label it "reference only"; add the missing <code>make_row_with_units</code> for <code>motor_x_val</code> (units: mm) or remove the motor feature from the UI; wire <code>cable_offset</code> to whatever hole it was meant to place, or delete it. Document <code>0.4155</code> with its source or replace with 50%.</li>
+<li><strong>Confidence:</strong> CONFIRMED for all three dead paths (grep); the 0.4155 provenance is unknown by definition.</li>
+</ul>
+<h3 class="med">[M3] MEDIUM — Window enabled with empty size fields emits a degenerate zero-size window path</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:3164–3170 (<code>get_mm('')</code> → 0.0), consumed at 896–914</li>
+<li><strong>Category:</strong> robustness</li>
+<li><strong>Problem:</strong> GUI defaults are <code>window_enabled=True</code> with empty <code>window_w/window_h</code>. Empty parses to 0.0, passes the <code>min()</code> clamps, and <code>generate_front_bezel_parts</code> happily draws a zero-area rectangle at panel center (<code>M cx cy L cx cy …</code>).</li>
+<li><strong>Impact:</strong> First-run-out-of-the-box output contains a degenerate <code>FRONT_BEZEL_WINDOW</code> path in both the per-part file and the master's INSIDE WINDOW layer; CAM import of a zero-area contour is at best confusing, at worst a plunge-in-place toolpath.</li>
+<li><strong>Fix:</strong> In <code>run_generation</code>, treat <code>w_in &lt;= 0 or h_in &lt;= 0</code> as window-disabled for this run (and set the two CONFIG sizes to 0 as the disabled branch already does); optionally flag it in the status area.</li>
+<li><strong>Confidence:</strong> CONFIRMED by trace; not run-verified. Check: clear both window fields, generate, inspect <code>FRONT_BEZEL_WINDOW.v*.svg</code> for a zero-area path.</li>
+</ul>
+<h3 class="med">[M4] MEDIUM — Blender script reads <code>HATCH_RAISE</code>; app writes <code>HATCH_RAISE_IN</code></h3>
+<ul>
+<li><strong>Where:</strong> blender_generator.py:160 (emit: <code>config.get('HATCH_RAISE', 0.0)</code>); app writes <code>HATCH_RAISE_IN</code> at cnc_generator.py:3147; generated script consumes <code>HATCH_RAISE_IN</code> at blender_generator.py:930</li>
+<li><strong>Category:</strong> api</li>
+<li><strong>Problem:</strong> The emitted CONFIG key <code>HATCH_RAISE_IN</code> is populated from the wrong source key, so it is always <code>0.0</code>.</li>
+<li><strong>Impact:</strong> Once H3/H4 let the rear hatch render, it will always sit at raise 0 regardless of the user's "Raise Panel" value — a silently wrong visualization.</li>
+<li><strong>Fix:</strong> <code>'HATCH_RAISE_IN': {config.get('HATCH_RAISE_IN', 0.0)},</code> — one token.</li>
+<li><strong>Confidence:</strong> CONFIRMED (key written vs key read; the in-code comment even quotes a <code>HATCH_RAISE</code> line that does not exist in the app).</li>
+</ul>
+<h3 class="med">[M5] MEDIUM — CONFIG mixes units per key; <code>FRONT/BACK_RABBET_WIDTH</code> is a negative inches value; headless run uses a different default</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:3079–3082 (<code>FRONT_RABBET_WIDTH = stock_in − (stock_in + fit_tol + adj)</code> = <code>−(fit_tol + adj)</code>, in inches, in a CONFIG whose dimension keys are mm); generate_headless.py (never sets <code>FRONT/BACK_RABBET_WIDTH</code> → code default <code>0.3"</code> at cnc_generator.py:851 applies)</li>
+<li><strong>Category:</strong> grounding | maintainability</li>
+<li><strong>Problem:</strong> The value called "rabbet width" is actually the negated plug clearance; it goes negative whenever glue gap &gt; 0 (the GUI default 0.0197" produces −0.0197). Downstream, <code>rim_width = stock − FRONT_RABBET_WIDTH</code> reconstructs the intended <code>stock + gap</code>, so SVG output is correct — but the persisted config.json lies about the physical rabbet, the Blender script converts the negative value to meters (unused today only because rail rabbet booleans are skipped, blender_generator.py:608–611), and the headless path silently uses <code>0.3"</code> instead, producing a plug 0.3" different per side from the GUI for identical inputs.</li>
+<li><strong>Impact:</strong> Anyone reading config.json, the Blender CONFIG, or running headless gets geometry semantics different from the GUI; the negative value is a trap for the next consumer (a future Blender rabbet cut would invert).</li>
+<li><strong>Fix:</strong> Store the physical quantity: <code>CONFIG['FRONT_RIM_WIDTH_IN'] = calc_rim_width</code> and derive everywhere from that (the bezel/back functions already compute <code>rim_width</code> — pass it instead of the negated field); set the same key in <code>generate_headless.py</code>. Add a <code># mm</code> / <code># in</code> suffix convention or <code>_MM</code>/<code>_IN</code> naming for every CONFIG key touched.</li>
+<li><strong>Confidence:</strong> CONFIRMED for the sign/semantics and the headless divergence (code read); no runtime effect on current SVG output.</li>
+</ul>
+<h3 class="med">[M6] MEDIUM — Spec drift: USER_SPECIFICATIONS.md vs current code</h3>
+<ul>
+<li><strong>Where:</strong> <code>USER_SPECIFICATIONS.md</code> SPEC-004/SPEC-007 (both "ACTIVE") vs cnc_generator.py:962 ("v48 UPDATE: Rails DO NOT have rabbets") and the stepped-plug design; SPEC-008 (viewport clip ≤ 0.001 m) vs blender_generator.py:1066 (<code>clip_start = 0.01</code>); SPEC-009 (exposure 2.5) vs blender_generator.py:1050 (<code>exposure = 4.0</code>)</li>
+<li><strong>Category:</strong> grounding</li>
+<li><strong>Problem:</strong> The spec log — explicitly maintained as the conflict-check authority — no longer matches the implementation: rails have no receiving rabbets, the bezel rabbet is <code>stock+gap</code> wide (not 5/16"), the Blender viewport clip is 10× the spec, exposure is 4.0 vs 2.5. The TriVision variant sets clip 0.001 correctly (blender_generator.py:1840 region), showing which side drifted.</li>
+<li><strong>Impact:</strong> The next "verify against previous specifications" pass (the file's stated workflow) will either falsely flag correct code or bless violations; close-up joinery inspection in Blender clips 10 mm early.</li>
+<li><strong>Fix:</strong> Set <code>clip_start = 0.001</code> and <code>exposure = 2.5</code> in the Blender template (or record why 4.0 superseded 2.5); update SPEC-004/007 to SUPERSEDED with a pointer to the v48 plug design, or mark them so with dates.</li>
+<li><strong>Confidence:</strong> CONFIRMED (text vs code); which side is authoritative for exposure is a user decision — flag, don't silently pick.</li>
+</ul>
+<h3 class="med">[M7] MEDIUM — Both test scripts target stale or nonexistent files</h3>
+<ul>
+<li><strong>Where:</strong> test_gen.py:15 (loads <code>CNC GENERATOR - CARBIDE-OPTIMIZED v1.26.py</code>, the abandoned monolith); test_layout.py:14 (references <code>CNC GENERATOR - Claude v1.04.py</code>, which does not exist) and :28 (scans for <code>CNC Box Generator v*</code> folders, a naming scheme no longer produced)</li>
+<li><strong>Category:</strong> robustness</li>
+<li><strong>Problem:</strong> The only test harnesses in the repo exercise a superseded file or nothing at all; the live <code>cnc_generator.py</code> has zero automated coverage.</li>
+<li><strong>Impact:</strong> Every defect above shipped without a tripwire; the C1 overlap sat in the flagship output file.</li>
+<li><strong>Fix:</strong> Repoint test_gen.py at <code>cnc_generator.py</code> (it is import-safe: the mainloop is under <code>__main__</code>), and fold the acceptance checks below into it as assertions rather than prints.</li>
+<li><strong>Confidence:</strong> CONFIRMED (file list; <code>CNC GENERATOR - Claude v1.04.py</code> absent from the tree).</li>
+</ul>
+<h3 class="low">[L1] LOW — Dead and duplicated code that will drift</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:467–473 vs 521–528 (two identical <code>compute_finger_layout</code> definitions — second silently shadows the first), 1696 &amp; 1704 (unreachable <code>BOTTOM_HATCH_LID</code>/<code>BOTTOM_HATCH_CUT</code> branches — see C2/H1), 1716–1717 (never-populated <code>BOTTOM ACCESS</code> buffers), 1875–1877 (<code>run_generation_patch</code> marker function), 636–662 (top/bottom finger-edge branches no caller uses)</li>
+<li><strong>Category:</strong> maintainability</li>
+<li><strong>Problem/Impact:</strong> Each is harmless today; the duplicate finger-layout function is the dangerous one — an edit to the first definition does nothing, which is exactly how a future joinery fix silently fails to land.</li>
+<li><strong>Fix:</strong> Delete the first <code>compute_finger_layout</code>, the marker function, and the unreachable branches as part of the C2/H1 rework.</li>
+<li><strong>Confidence:</strong> CONFIRMED.</li>
+</ul>
+<h3 class="low">[L2] LOW — BinPacker 48×96 expansion never reverts on failure</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:1245–1263 (<code>sheet['h'] = 96.0</code> then <code>pass</code> on the no-fit path)</li>
+<li><strong>Category:</strong> correctness</li>
+<li><strong>Problem:</strong> When expansion doesn't help, the sheet's height stays 96 anyway; later items and the canvas-size calculation treat it as a 48×96 sheet.</li>
+<li><strong>Impact:</strong> Oversized master canvas / items placed on a phantom lower half of a sheet the user cuts as 48×48. Only bites with part sets big enough to trigger expansion attempts.</li>
+<li><strong>Fix:</strong> Restore <code>sheet['h'] = original_h</code> in the else branch (the variable is already captured at 1251).</li>
+<li><strong>Confidence:</strong> CONFIRMED by read; construct a &gt;48" part set to observe.</li>
+</ul>
+<h3 class="low">[L3] LOW — Version and title mismatches</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:2775 (UI badge "v1.24" vs file header v1.25), 1977 vs 1981 (SVG <code>&lt;title&gt;BACK_PANEL_HOLES</code> inside file named <code>BACK_PANEL_HOLES_THROUGH…</code>, so the Illustrator layer name diverges from the filename convention every other file follows)</li>
+<li><strong>Category:</strong> maintainability</li>
+<li><strong>Fix:</strong> Bump the badge string; pass <code>"BACK_PANEL_HOLES_THROUGH"</code> to <code>create_svg_header</code>.</li>
+<li><strong>Confidence:</strong> CONFIRMED.</li>
+</ul>
+<h3 class="low">[L4] LOW — Auto-installer retries pip with <code>--break-system-packages</code> on system Python</h3>
+<ul>
+<li><strong>Where:</strong> cnc_generator.py:71–75</li>
+<li><strong>Category:</strong> robustness</li>
+<li><strong>Problem:</strong> On any non-venv run (e.g. double-clicking with system Python), a failed <code>pip --user</code> install is retried mutating Homebrew/system site-packages without asking.</li>
+<li><strong>Impact:</strong> Can corrupt the system Python environment on a machine this app is copied to ("resizable in case it is used on a different machine" implies such copies).</li>
+<li><strong>Fix:</strong> Replace the retry with a printed instruction to create/activate the venv (one exists in the project root) and exit.</li>
+<li><strong>Confidence:</strong> CONFIRMED code path; environment-dependent to trigger.</li>
+</ul>
+<h2>Cross-cutting</h2>
+<ul>
+<li><strong>Filename-substring dispatch is the module's systemic weakness.</strong> C2, H1, H2, and both L1 dead branches are all the same root defect: <code>get_layer_type_v11</code> classifies whole files by fragile substring order, while several files legitimately contain mixed cut types. Route by element stroke color (the per-part generators already encode semantics in color) and the entire class disappears.</li>
+<li><strong>One physical parameter, three names.</strong> The glue gap lives as UI <code>glue_gap</code> → <code>FIT_TOLERANCE</code>, phantom <code>GLUE_GAP</code>, and negated <code>FRONT/BACK_RABBET_WIDTH</code> (H5, M5). Pick one CONFIG key with one unit and derive the rest at point of use.</li>
+<li><strong>The master layout has no post-generation invariant checks</strong> (M1): non-overlap, non-negative coordinates, and per-part bbox-vs-packed-cell agreement are all cheap to assert at generation time and would have caught C1 before it reached a shipped file.</li>
+<li><strong>The Blender template is the drifted twin.</strong> The TriVision variant defines <code>half_*</code> before use and honors the clip-start spec; the Blender variant fails both (H4, M6). When fixing, diff the two templates and converge on the TriVision ordering.</li>
+</ul>
+<h2>Do not regress</h2>
+<ul>
+<li>The half-round finger/socket math in <code>generate_perimeter_with_fingers</code> (cnc_generator.py:589–794) is correct and load-bearing: odd symmetric finger count from <code>compute_finger_layout</code>, both mating edges derived from <code>BOX_DEPTH</code> so counts always agree, <code>FIT_TOLERANCE</code> shrinks males only, and first/last fingers snap flush to the outer edge (lines 686–690, 764–768). C1's fix must not alter path geometry — only packing dims and placement transforms.</li>
+<li>Assembled-dimension identities: horizontal rail body <code>TOTAL_WIDTH − 2·stock</code> + finger protrusion <code>stock − fit_tol</code> per side; vertical rails full <code>TOTAL_HEIGHT</code> with sockets <code>stock</code> deep. These produce the correct outer box; don't "fix" them while fixing the packer.</li>
+<li>Per-part SVG color semantics (red perimeter / blue holes / orange rabbets / purple window / green pockets) are correct in every individual file — H1/C2 fixes belong in the master-layout flattening only.</li>
+<li>Output-folder versioning (<code>McTell SVGs v{n+1}</code>, scan at cnc_generator.py:3196–3205) and settings persistence round-trip work; keep them.</li>
+<li>The unit-toggle conversion in <code>handle_unit_toggle</code> (in↔mm on existing field values) is correct; H5/M5 key consolidation must not touch it.</li>
+</ul>
+<h2>Acceptance checks</h2>
+<p>Run from <code>Gemini McTell CNC Plans/</code> with the project venv. Checks 1–3 gate the criticals; run check 1 after every fix since it regenerates the master.</p>
+<ol>
+<li>1. <strong>[C1] No overlap, no off-sheet geometry.</strong> Drive a generation with the v134 settings (14×14×2.5 in, stock 15.19936 mm, gap 0, window 13×13, cleats/hatches off — <code>test_gen.py</code> repointed per M7 works), then:</li>
+</ol>
+<p>   ```python</p>
+<p>   import re</p>
+<p>   svg = open(sorted(__import__('glob').glob('McTell SVGs v*/MASTER_LAYOUT_COMBINED_v*.svg'))[-1]).read()</p>
+<p>   parts = {}</p>
+<p>   for d, tf, pid in re.findall(r'&lt;path d="([^"]*)" [^&gt;]*transform="([^"]*)" id="(\w+_OUTSIDE_CUTS)"', svg):</p>
+<p>       n = [float(x) for x in re.findall(r'-?\d+\.?\d*', d)]</p>
+<p>       t = re.findall(r'translate\(([-\d.]+),\s*([-\d.]+)\)', tf); rot = 'rotate(90)' in tf</p>
+<p>       (a,b),(c,e) = map(lambda p:(float(p[0]),float(p[1])), t)</p>
+<p>       pts = [((x+c), (y+e)) for x,y in zip(n[0::2], n[1::2])]</p>
+<p>       if rot: pts = [(-y, x) for x,y in pts]</p>
+<p>       pts = [(x+a, y+b) for x,y in pts]</p>
+<p>       parts[pid] = (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))</p>
+<p>   assert all(v[0] &gt;= -1e-6 and v[1] &gt;= -1e-6 for v in parts.values()), f"off-sheet: {parts}"</p>
+<p>   ks = list(parts)</p>
+<p>   for i in range(len(ks)):</p>
+<p>       for j in range(i+1, len(ks)):</p>
+<p>           A, B = parts[ks[i]], parts[ks[j]]</p>
+<p>           assert A[2] &lt;= B[0]+1e-6 or B[2] &lt;= A[0]+1e-6 or A[3] &lt;= B[1]+1e-6 or B[3] &lt;= A[1]+1e-6, f"OVERLAP {ks[i]} x {ks[j]}"</p>
+<p>   print("C1 PASS")</p>
+<p>   ```</p>
+<p>   Must print <code>C1 PASS</code>. (Today it fails with <code>OVERLAP TOP_OUTSIDE_CUTS x BOTTOM_OUTSIDE_CUTS</code> and off-sheet min-x −0.0984.)</p>
+<ol>
+<li>2. <strong>[C3] Nested-hatch generation completes.</strong> Same settings but <code>hatch_enabled=True</code> (window 13×13 forces nesting). Generation must produce a new <code>McTell SVGs v*</code> folder containing <code>MASTER_LAYOUT_COMBINED_v*.svg</code> with no <code>NameError</code> dialog/traceback.</li>
+<li>3. <strong>[C2]/[H1] Master layer semantics.</strong> In the run from check 2, assert in the master SVG: the rear-hatch *shelf* rect's coordinates appear inside a path whose <code>data-name</code> is a rabbet/pocket bucket (not <code>INSIDE WINDOW</code>); the <code>HATCH_LID</code> inner-step rect and its 4 circles do *not* appear in any <code>*_OUTSIDE_CUTS</code> path.</li>
+<li>4. <strong>[H2] CSINK mapping.</strong> With <code>cleats_enabled=True</code>, generate and assert every <code>a r r 0 1 0</code> circle arc from <code>CLEAT_WALL_HOLES_CSINK</code> coordinates lands in a path with <code>data-name="RABBET"</code>/pocket bucket, and <code>CLEAT_WALL_HOLES_THROUGH</code> circles land in <code>data-name="HOLE"</code>.</li>
+<li>5. <strong>[H3]/[H4]/[M4] Blender features render.</strong> Generate with cleats + rear hatch (raise 1.0 in) enabled; in the emitted <code>OPEN_ME_IN_BLENDER.v*.py</code> assert: no occurrence of <code>== 'True'</code>; <code>half_d</code> is assigned before its first read (<code>grep -n "half_d"</code> — first hit is the assignment); emitted <code>'HATCH_RAISE_IN': 1.0</code>. Then run it in Blender 4.x: objects <code>McTell_Cleat_Box</code>, <code>McTell_Cleat_Wall</code>, <code>McTell_Hatch_Lid</code> must exist, hatch-lid center Z ≈ <code>(−H/2 + stock + 1.0·0.0254 + open_h/2)</code> within 1 mm.</li>
+<li>6. <strong>[H5] One glue-gap source.</strong> <code>grep -n "GLUE_GAP" cnc_generator.py</code> returns nothing (or only the write <code>CONFIG['GLUE_GAP'] = CONFIG['FIT_TOLERANCE']</code>). With glue gap 0.4 mm, rear-hatch and bottom-hatch flange widths in the emitted SVGs must be equal: <code>stock/2 − 0.4 mm</code>.</li>
+<li>7. <strong>[H6] Window/plug guard.</strong> With the v134 settings (window 13 on plug 12.803), generation must emit a visible warning (or clamp) naming both numbers; with window 12.0 it must stay silent.</li>
+<li>8. <strong>[H7] Lid clearance.</strong> With gap 0.4 mm, assert in the emitted SVGs: rear <code>HATCH_LID</code> outer rect width == shelf rect width − 0.8 mm (in inches: −0.0315), and lid plug width == opening width − 0.8 mm. Same for the bottom hatch.</li>
+<li>9. <strong>[M3] Degenerate window suppressed.</strong> Generate with window enabled and empty size fields: no <code>FRONT_BEZEL_WINDOW.v*.svg</code> is written and the master contains no <code>*_INSIDE_WINDOW</code> path for FRONT.</li>
+<li>10. <strong>[L2] Expansion revert.</strong> Unit-test <code>BinPacker</code>: pack one 47×47 item then one 50×47 item; after packing, every sheet with no item taller than 48 has <code>h == 48.0</code>, and no item's bbox exceeds its sheet.</li>
+</ol>
+</body>
+</html>

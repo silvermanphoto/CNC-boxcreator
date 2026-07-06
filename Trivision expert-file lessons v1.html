@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trivision Expert-File Lessons</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         font-size: 17px; line-height: 1.55; color: #222; background: #fbfaf8;
+         max-width: 920px; margin: 0 auto; padding: 32px 24px 90px; }
+  h1 { font-size: 30px; line-height: 1.2; border-bottom: 3px solid #d97757; padding-bottom: 10px; }
+  h2 { font-size: 23px; margin-top: 40px; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
+  h3 { font-size: 19px; margin-top: 30px; color: #7a3b22; }
+  hr { border: none; border-top: 1px solid #e2ddd5; margin: 34px 0; }
+  code { background: #efece7; padding: 1px 5px; border-radius: 4px;
+         font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 15px; }
+  .tablewrap { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 15.5px; }
+  th, td { border: 1px solid #d9d3c9; padding: 7px 11px; text-align: left; vertical-align: top; }
+  th { background: #f0ece4; font-weight: 600; }
+  tbody tr:nth-child(even) { background: #f6f3ee; }
+  ol { padding-left: 26px; }
+  li { margin: 6px 0; }
+  p { margin: 11px 0; }
+  strong { color: #111; }
+  em { color: #555; }
+</style>
+</head>
+<body>
+<h1>Lessons from the Expert's Canonical Build — Trivision PLS NEW V2</h1>
+<p><strong>Source:</strong> <code>07.01.26 Trivision PLS NEW V2.f3z</code> (Fusion 360 archive), read live from the open Fusion document via the Fusion MCP — all dimensions below measured from the model, not estimated.</p>
+<p><strong>What the file is:</strong> one document holding both generations. The hidden <code>Assembled</code> group is the app's own output imported into Fusion (its Back Panel measures 62.4594 × 43.4594 × 0.5984 in — exactly the parameters in <code>verify_encasement.py</code>). The visible <code>NEW FRAME</code> group is the CNC expert's rebuilt, canonical version. That makes this a measurable before/after of everything the expert had to change.</p>
+<p><strong>Headline delta:</strong> app output 62.459 × 43.459 × 5.098 in → expert build 68.252 × 43.897 × 6.697 in overall, plus roughly a dozen parts the app never generates.</p>
+<hr>
+<h2>The measured facts (expert model)</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Feature</th><th>Measured value</th></tr></thead><tbody>
+<tr><td>Outer box (assembled)</td><td>68.2522 × 43.8969 × 6.697 in</td></tr>
+<tr><td>Outer frame depth (rails)</td><td>6.0985 in; stock 0.5906–0.5984 in (15 mm class)</td></tr>
+<tr><td>Corner box joints</td><td>9 equal fingers × 0.6776 in (17.21 mm) across the 6.0985 in depth; sockets exactly stock-deep; <strong>0.0000 in clearance</strong> (nominal, line-to-line)</td></tr>
+<tr><td>Front frame / back panel</td><td>Full outer footprint (68.25 × 43.90); each sits <strong>0.299 in (= stock/2) into</strong> the frame and stands <strong>0.299 in proud</strong> — the app's stepped-panel concept, confirmed at exactly half stock</td></tr>
+<tr><td>Front window opening</td><td>62.1819 × 36.8268 in (face border 3.04 in)</td></tr>
+<tr><td>Plexi pane (QTR PLEXI)</td><td>0.25 in thick, 62.9319 × 37.5768 in = <strong>window opening + 0.750 in</strong> (⅜ in lip per side); floats 0.015 in behind the frame; retained by 4 corner brackets 3 × 3 × stock, each with 2 × 5 mm screw holes</td></tr>
+<tr><td>Rear access opening</td><td>60.185 × 9.721 in; lid 61.466 × 10.905 → <strong>flange ≈ 0.59–0.64 in per side (≈ full stock)</strong>; lid rests line-to-line, <strong>no fasteners</strong></td></tr>
+<tr><td>French cleats</td><td>Wall cleat <strong>56 in</strong>, panel cleat <strong>46 in</strong> (10 in of lateral adjustment); 45° engagement overlap 0.47 in with 2.1 mm hang clearance; panel cleat centered ~30% down from box top; plus a <strong>bottom spacer strip 46 × 2 × stock</strong> to hang plumb</td></tr>
+<tr><td>Double wall</td><td>Inner liner frame nested inside the outer frame with a <strong>0.300 in (7.6 mm) wall gap</strong>; liners 66.44 in long</td></tr>
+<tr><td>Bottom liner = motor/bearing plate</td><td>12 stations at ~5.54 in pitch: per station 4 × 3.5 mm pilots, 4 × 5.3 mm clearance, 2 × 7.5 mm bearing holes (120 holes total); 11 separate bearing blocks 1.68 × 0.30 × 2.85 in with the same hole set</td></tr>
+<tr><td>Top liner</td><td>12 stations: 2 × ⅛ in pivot holes + 1 × 5 mm hole each</td></tr>
+<tr><td>Other holes</td><td>1 × ½ in pass-through in outer bottom (cabling); 5 mm holes in back panel, brackets, spacer</td></tr>
+<tr><td>Dogbones</td><td><strong>None anywhere</strong> — zero cylindrical faces on any joint; inside corners left square (nominal), consistent with the app's manual-roundover philosophy</td></tr>
+<tr><td>Electronics</td><td>Arduino Mega placed as an XRef; motor plate merged into the bottom liner (matches the NEMA-17 stepper STEP file already in the repo)</td></tr>
+<tr><td>Parameters</td><td><strong>No user parameters.</strong> The expert's timeline is imports + ~50 <code>OffsetFaces</code>/<code>Move</code>/<code>Scale</code> edits — every one of them is a dimension the app got wrong or never exposed</td></tr>
+</tbody></table></div>
+<hr>
+<h2>Lessons for the generalized app</h2>
+<h3>1. The window is an assembly, not a hole</h3>
+<p>The expert treats glazing as three coordinated parts: the opening, a plexi pane cut to <strong>opening + 2 × ⅜ in lip</strong>, and <strong>4 corner retainer brackets</strong> (3 × 3 × stock, two 5 mm screw holes each) that clamp the pane behind the frame. The app cuts only the opening.</p>
+<p><strong>Change:</strong> when the window is enabled, also emit a <code>PLEXI_PANE</code> outline (opening + 2 × lip; lip parameter, default 0.375 in), 4 <code>BRACKET</code> parts, and bracket screw pilots — and include the pane thickness (default 0.25 in) in the depth stack.</p>
+<h3>2. Half-stock panel steps are confirmed — keep them, and validate the window against the plug</h3>
+<p>The expert's front/back panels are full outer size, stepped <strong>exactly stock/2</strong> into the frame and proud stock/2 — precisely the app's v48+ plug design and <code>step_depth = stock/2</code>. This is independent expert validation of the current architecture. His window (62.18 in) sits far inside the structural plug; the app's own last output (window 13.0 in vs plug 12.8 in) violated this. Reinforces review finding <strong>H6</strong>: enforce <code>window ≤ plug − margin</code>.</p>
+<h3>3. CAD stays nominal; fit lives only in the CAM layer</h3>
+<p>Every mating pair in the canonical model measures <strong>0.0000 in clearance</strong> — fingers, sockets, lid, brackets. The expert models nominal geometry and lets tooling/CAM produce the fit. The app instead bakes the glue gap into all outputs, including the 3D exports.</p>
+<p><strong>Change:</strong> keep <code>FIT_TOLERANCE</code> in the CAM-facing SVGs only; generate the Blender/Fusion/TriVision geometry nominal (no pre-shrunk fingers). A downstream expert should never inherit invisible baked-in gaps. (The SVG-side lid clearance from review finding <strong>H7</strong> still stands — that layer is where fit belongs.)</p>
+<h3>4. Access lid: full-stock flange, no fasteners</h3>
+<p>Expert flange is ≈ 0.6 in per side (≈ full stock); the app computes <code>stock/2 − gap</code> ≈ 0.28 in — half as much bearing surface. The expert's lid also has zero screw holes (gravity/friction fit).</p>
+<p><strong>Change:</strong> make flange width a parameter defaulting to ~1 × stock, and make the 4 corner screws optional (default off).</p>
+<h3>5. A French-cleat <em>system</em> is three parts</h3>
+<p>The expert hangs the box on: a <strong>wall cleat 10 in longer than the panel cleat</strong> (lateral adjustability), the panel cleat mounted ~30% down from the top (close to the app's ⅓ rule — keep it), and a <strong>bottom spacer strip</strong> (panel-cleat length × 2 in × stock) so the box hangs plumb. The app makes two equal-length cleats and no spacer.</p>
+<p><strong>Change:</strong> wall cleat = panel cleat + ~10 in (cap at sheet width); always emit the spacer strip with its mounting holes.</p>
+<h3>6. The finger-joint algorithm survives expert review</h3>
+<p>Nine equal fingers, odd count, sockets exactly stock-deep, flush outer faces — the expert's corners are structurally identical to what <code>compute_finger_layout</code> + the perimeter generator produce. Only his target width is larger (17.2 mm vs the 15 mm default) on this big box. Zero dogbones confirms the manual-roundover approach.</p>
+<p><strong>Change:</strong> none to the math (protect it — it is in the review's do-not-regress list). Consider scaling default finger width with box size instead of a fixed 15 mm.</p>
+<h3>7. Holes are a fastener-driven system, not a single radius</h3>
+<p>The expert uses a consistent three-tier hole vocabulary: <strong>3.5 mm pilot</strong>, <strong>5.3 mm clearance</strong>, <strong>7.5 mm bearing</strong>, plus ⅛ in pivots, 5 mm mounting holes, and a ½ in cable pass-through. The app hardcodes <code>hole_r = 0.1</code> for nearly everything.</p>
+<p><strong>Change:</strong> define hole types (pilot / clearance / countersink / bearing / pass-through) with per-fastener defaults, and let each feature reference a type. This also subsumes review finding <strong>H2</strong> (countersinks must stay pockets).</p>
+<h3>8. Interior-first sizing is the real spec</h3>
+<p>The box grew ~5.8 in wider and 1 in deeper because the <em>contents</em> dictate size: 12 prism stations at 5.54 in pitch, a 0.30 in wall gap, motor bay, plexi stack-up. The app sizes exterior-first; <code>verify_encasement.py</code> (inner object + clearance) was a one-off hardcoded attempt at the right idea.</p>
+<p><strong>Change:</strong> add an interior-driven mode — user enters interior payload (or N stations × pitch + margins) and the app derives exterior dims. At minimum, display the computed interior dimensions live in the UI so a mismatch is visible before cutting.</p>
+<h3>9. Equipment boxes want a double wall</h3>
+<p>The expert nests an inner liner frame (carrying all 120 bearing/pilot holes) inside the structural outer frame, 0.30 in apart. Structure and mechanism mounting are separated — holes live in the sacrificial/replaceable liner, not the box walls.</p>
+<p><strong>Change (larger feature):</strong> optional "liner" sub-frame at a configurable wall offset, with a repeating station-hole pattern (N stations, pitch, hole set per station). The 11 bearing blocks suggest a companion small-part strip the nesting layer should pack automatically.</p>
+<h3>10. Motor mounting is a plate with stations, not a pocket</h3>
+<p>The app's motor feature is a single NEMA-17 pocket in a rail at an ungrounded 0.4155 × width (review finding <strong>M2</strong>: no UI input reaches it). The expert instead merged a <strong>motor mount plate</strong> into the bottom liner and placed the Arduino beside it.</p>
+<p><strong>Change:</strong> replace/augment the motor pocket with a motor-plate template (NEMA pattern + shaft/bearing holes at station positions), and keep an electronics envelope (Arduino footprint) in the depth/width check.</p>
+<h3>11. Meta-lesson: every <code>OffsetFaces</code> in the expert's timeline is a missing parameter</h3>
+<p>The expert never created a single user parameter — he brute-forced ~50 face offsets, moves, and scales on imported dumb solids. That is the cost of the app exporting non-parametric geometry with wrong or inflexible dimensions. Two remedies, in order of value:</p>
+<ol>
+<li>1. Get the numbers in this table into the app as defaults/parameters (lips, flanges, cleat deltas, wall gap, hole tiers) so the output is right the first time.</li>
+<li>2. Make the Fusion export parametric — emit user parameters (<code>stock</code>, <code>depth</code>, <code>window_w</code>, …) wired to the sketches (the <code>DXF_for_Fusion</code> experiment in <code>McTell SVGs v131</code> is the seed), so the next expert adjusts a value instead of rebuilding the frame.</li>
+</ol>
+<hr>
+<h2>Suggested priority</h2>
+<p>Quick wins that change cut files directly: <strong>1</strong> (plexi + brackets), <strong>4</strong> (lid flange), <strong>5</strong> (cleat system + spacer), <strong>7</strong> (hole types). Structural but high-value: <strong>3</strong> (nominal 3D), <strong>8</strong> (interior-first sizing). Larger features to scope with Joel: <strong>9</strong> (liner sub-frame), <strong>10</strong> (motor plate), <strong>11.2</strong> (parametric Fusion export). Items <strong>2</strong> and <strong>6</strong> are validations — protect existing behavior and finish review findings H6/H7/H2.</p>
+<p><em>Caveats:</em> the wall cleat's 213-face body includes non-planar surfaces I did not fully classify (likely slotted mounting features — worth a visual check in Fusion before copying its hole pattern). Station count (12) and pitch (5.54 in) are project-specific to this trivision sign; the lesson is the parametric pattern, not those constants.</p>
+</body>
+</html>
