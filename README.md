@@ -1,0 +1,67 @@
+# CNC Box Creator
+
+A desktop tool that turns box dimensions into CNC-ready cut files. Enter stock
+thickness, tool diameter, joint sizing, and panel options in a GUI; get back a
+folder of labeled SVG toolpath files — one per part plus a nested master layout —
+ready to import into Carbide Create (or any CAM package that reads SVG) and cut
+on a Shapeoko-class router.
+
+Built to fabricate museum-style **shadowbox frames**: four rails joined with CNC-cut
+box (finger) joints, a rabbeted front bezel with a display window, and a rabbeted
+back panel. The parameter set grew around a real build — the wooden housings for the
+[Trivision Kinetic Sculpture](https://github.com/silvermanphoto/jls-trivision-kinetic-sculpture),
+a 12-prism kinetic artwork by Joel Silverman — so it also supports motor pockets,
+access hatches, and cleats.
+
+## What it generates
+
+Each run writes a versioned output folder (`McTell SVGs vNNN/`) containing:
+
+- **Per-part SVGs** — perimeter, rabbet, and window/pocket operations as separate
+  files per part (left/right/top/bottom rails, front bezel, back panel), so each
+  toolpath can be assigned its own depth and tool in CAM.
+- **A combined master layout** — all parts bin-packed onto 48×48-inch artboards
+  (auto-rotated for best fit, expandable to 48×96), with large color-coded text
+  annotations: part name, sub-part, and machining instructions.
+- **`config.json`** — the exact parameters that produced the run, so any output
+  set can be regenerated or audited later.
+- **A Blender mockup script** (`OPEN_ME_IN_BLENDER.*.py`) that assembles the cut
+  parts into a 3D preview of the finished box.
+
+## Running it
+
+```
+cd "Gemini McTell CNC Plans"
+python3 "CNC GENERATOR - CARBIDE-OPTIMIZED v1.29.py"
+```
+
+Requires Python 3 with tkinter (present in the standard python.org installers).
+The one third-party dependency, matplotlib, installs itself on first launch if
+missing. Settings persist between sessions in `cnc_generator_settings.json`.
+
+The generator understands the practical constraints of a real CNC workflow:
+finger widths are recomputed to divide the rail evenly, joint fit tolerance is a
+parameter rather than an afterthought, and every operation is labeled for the
+person standing at the machine.
+
+## Repository tour
+
+```
+Gemini McTell CNC Plans/     the live generator (highest version number wins),
+                             its output sets, and fabrication support files
+  ARCHIVED PYTHON CODE/      earlier generator versions (v1.03 … v1.25)
+  For Fabrication/           final DWG drawings sent to fabrication
+  JOINERY_MATH_FIXES.md      notes on the joint-math corrections
+ARCHIVED PYTHON CODE/        oldest archived version
+PROJECT CLOSET/              reference material, incl. the Vectric Box Creator
+                             gadget (Lua) this project outgrew
+Full_Blind_Box_Joint.jpg     joinery reference photos
+Woodcraft Example *.png      shadowbox style references
+17HM19-2004S.STEP            CAD model of the stepper motor the housing pockets fit
+```
+
+## Author
+
+Joel Silverman — [joelsilverman.com](https://joelsilverman.com) — Atlanta visual
+artist. This tool was written to fabricate housings for kinetic sculpture; use
+anything here that's useful for your own boxes.
