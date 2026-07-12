@@ -16,7 +16,7 @@ mkdir -p build_temp
 # --add-data: Include logic for saving settings (not stricly needing file, but making sure)
 # Using the venv python to ensure deps
 
-"/Users/joelsilverman/Desktop/2026 Files/26-005 Gemini-created CNC Box Creator/venv/bin/pyinstaller" \
+"/Users/joelsilverman/Desktop/2026 Files/26-005 CNC Box Creator/venv/bin/pyinstaller" \
     --name "CNC Plywood Box Maker" \
     --windowed \
     --icon "Generator.icns" \

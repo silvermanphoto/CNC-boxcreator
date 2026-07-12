@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.27
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.28
 # ========================================
-# PRODUCTION RELEASE v1.27
+# PRODUCTION RELEASE v1.28
 #
 # Key Changes:
 # - Extracted Blender/TriVision generation to separate module (blender_generator.py).
@@ -1081,11 +1081,11 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
     if rail_name == "BOTTOM_RAIL" and CONFIG.get('BOTTOM_HATCH_ENABLED', False):
         try:
             bh_w_mm = CONFIG.get('BOTTOM_HATCH_WIDTH', 0)
-            bh_h_mm = CONFIG.get('BOTTOM_HATCH_HEIGHT', 0)
+            # bh_h_mm = CONFIG.get('BOTTOM_HATCH_HEIGHT', 0) # REPLACED WITH FIXED CONSTANT
             bh_x_pct = CONFIG.get('BOTTOM_HATCH_X_PCT', 50.0)
             
             bh_w_in = convert_to_inches(bh_w_mm)
-            bh_h_in = convert_to_inches(bh_h_mm)
+            bh_h_in = 3.395 # User Requested Fixed Height v1.28
             
             # Position: Center X calculated from Rail Width
             # Rail Width (Physical) = rail_w_in (Total Width - 2*Stock)
@@ -1705,10 +1705,10 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
         # Let's rely on CONFIG if available, or re-calc standard logic.
         
         bh_w = CONFIG.get('BOTTOM_HATCH_WIDTH', 0)
-        bh_h = CONFIG.get('BOTTOM_HATCH_HEIGHT', 0)
+        # bh_h = CONFIG.get('BOTTOM_HATCH_HEIGHT', 0)
         # Convert to inches? Config stored mm from UI input? No, we stored mm.
         bh_w_in = convert_to_inches(bh_w)
-        bh_h_in = convert_to_inches(bh_h)
+        bh_h_in = 3.395 # User Requested Fixed Height v1.28
         
         st_in = convert_to_inches(CONFIG['STOCK_THICKNESS'])
         gg_in = convert_to_inches(CONFIG.get('GLUE_GAP', 0.5)) # default
@@ -2599,7 +2599,7 @@ class ScrollableFrame(tk.Frame):
 class CarbideOptimizedApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("CNC Plywood Parametric Box Maker v1.27")
+        self.title("CNC Plywood Parametric Box Maker v1.28")
         self.geometry("900x850") 
         self.configure(bg="#f0f0f0")
         self.resizable(True, True) # User asked for resizable: "resizable in case it is used on a different machine"
@@ -2670,7 +2670,7 @@ class CarbideOptimizedApp(tk.Tk):
             'bottom_hatch_enabled': tk.BooleanVar(value=False),
             'bottom_hatch_w': tk.StringVar(value=""),
             'bottom_hatch_w_unit': tk.StringVar(value="in"),
-            'bottom_hatch_h': tk.StringVar(value=""),
+            'bottom_hatch_h': tk.StringVar(value="3.395"), # Fixed Value
             'bottom_hatch_h_unit': tk.StringVar(value="in"),
             'bottom_hatch_x_pct': tk.StringVar(value="50.0"), # Default Center
             'bottom_hatch_x_status': tk.StringVar(value="") # For status label
@@ -2931,7 +2931,8 @@ class CarbideOptimizedApp(tk.Tk):
         
         # Width, Height, X Pct
         self.make_row_with_units(b_hatch_frame, 1, "Width", self.vars['bottom_hatch_w'], self.vars['bottom_hatch_w_unit'])
-        self.make_row_with_units(b_hatch_frame, 2, "Height", self.vars['bottom_hatch_h'], self.vars['bottom_hatch_h_unit'])
+        # Height Row Removed v1.28 (Fixed at 3.395")
+        # self.make_row_with_units(b_hatch_frame, 2, "Height", self.vars['bottom_hatch_h'], self.vars['bottom_hatch_h_unit'])
         self.make_row_with_units(b_hatch_frame, 3, "X Position %", self.vars['bottom_hatch_x_pct'], None)
         
         # Status Label (10pt Futura #ffe102 -> Darker background or visible on light?)
@@ -2971,7 +2972,7 @@ class CarbideOptimizedApp(tk.Tk):
                    command=self.run_generation, font=("Lato", 15, "bold")).pack(pady=20)
 
 
-        tk.Label(container, text="v1.27", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")
+        tk.Label(container, text="v1.28", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")
 
         # Live Updates
         self._setup_live_preview_updates()

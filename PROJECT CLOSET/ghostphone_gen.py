@@ -1,6 +1,6 @@
 import math
 
-# Project: McTell Ghostphone CNC Shadowbox
+# Project: Box Ghostphone CNC Shadowbox
 MAT_THICKNESS = 12 / 25.4  # 12mm (~0.4724")
 BIT_DIA = 0.25
 BIT_RAD = BIT_DIA / 2
@@ -17,7 +17,7 @@ MOTOR_MOUNT_DIA = 0.14
 CABLE_HOLE_DIA = 0.5
 TARGET_FINGER_W = 1.5
 CORNER_FINGER_COUNT = 5 
-FILENAME = "McTell_Ghostphone_Shadowbox.svg"
+FILENAME = "Ghostphone_Shadowbox.svg"
 
 def get_odd_count(length, target_w):
     count = round(length / target_w)

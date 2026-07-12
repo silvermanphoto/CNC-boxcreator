@@ -1,0 +1,10 @@
+{
+    "autodeskProduct": "Fusion",
+    "type": "script",
+    "author": "Joel Silverman",
+    "description": {
+        "": "Imports Box DXF files as laid-out parts on the XY plane for CNC toolpath generation. Creates master layout sketch, individual part components, and stock boundary."
+    },
+    "supportedOS": "mac",
+    "editEnabled": true
+}

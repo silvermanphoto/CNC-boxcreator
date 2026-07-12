@@ -15,7 +15,7 @@ access hatches, and cleats.
 
 ## What it generates
 
-Each run writes a versioned output folder (`McTell SVGs vNNN/`) containing:
+Each run writes a versioned output folder (`Box SVGs vNNN/`) containing:
 
 - **Per-part SVGs** — perimeter, rabbet, and window/pocket operations as separate
   files per part (left/right/top/bottom rails, front bezel, back panel), so each
@@ -31,7 +31,7 @@ Each run writes a versioned output folder (`McTell SVGs vNNN/`) containing:
 ## Running it
 
 ```
-cd "Gemini McTell CNC Plans"
+cd "CNC Plans"
 python3 "CNC GENERATOR - CARBIDE-OPTIMIZED v1.29.py"
 ```
 
@@ -47,7 +47,7 @@ person standing at the machine.
 ## Repository tour
 
 ```
-Gemini McTell CNC Plans/     the live generator (highest version number wins),
+CNC Plans/                   the live generator (highest version number wins),
                              its output sets, and fabrication support files
   ARCHIVED PYTHON CODE/      earlier generator versions (v1.03 … v1.25)
   For Fabrication/           final DWG drawings sent to fabrication

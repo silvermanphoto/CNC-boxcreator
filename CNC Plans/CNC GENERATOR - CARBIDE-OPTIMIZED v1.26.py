@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.27
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.26
 # ========================================
-# PRODUCTION RELEASE v1.27
+# PRODUCTION RELEASE v1.26
 #
 # Key Changes:
 # - Extracted Blender/TriVision generation to separate module (blender_generator.py).
@@ -1096,13 +1096,7 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
             # Y Position: Centered in Depth (rail_h_in = Box Depth)
             center_y = rail_h_in / 2.0
             
-            # Correction v1.27: Add Stock Thickness to X Start
-            # ax is the Left Edge of the piece (Start of Fingers).
-            # The "Internal Width" (rail_w_in) starts after the left stock/fingers.
-            # So we must add st_in to shift the internal center correctly.
-            st_in = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-            bx = ax + st_in + center_x - (bh_w_in / 2.0)
-            
+            bx = ax + center_x - (bh_w_in / 2.0)
             by = ay + center_y - (bh_h_in / 2.0)
             
             # Hatch Geometry
@@ -1148,61 +1142,23 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
             #   cut_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS))
             # And `get_layer_type_v11` mapped `HATCH_CUT` to `CONTOUR (Inside)`.
             # This is ambiguous for CAM. Usually user separates them.
-            # ------------------------------------------------------------------
-            # BOTTOM HATCH LOGIC (v1.27 SPEC UPDATE)
-            # ------------------------------------------------------------------
-            # 1. Flange Width: Fixed 0.6"
-            # 2. Rail Holes: 0.28125" (9/32") Dia -> 0.140625" Radius
-            # 3. Lid Holes: 0.2" Dia -> 0.1" Radius
-            # 4. Placement: Inset 1/4" (0.25") from edge to hole EDGE.
-            #    Center Offset = 0.25" + Rail_Hole_Radius.
-            # ------------------------------------------------------------------
+            # But the user logic "addition of a female square rabbet... Inside/Left Contour Path"
+            # Maybe the user implies just ONE cut?
+            # "female square rabbet... on the bottom rail... to be an Inside/Left Contour Path".
+            # This implies cutting the hole with a step? You can't do a step with one contour path unless you seek a specific depth.
+            # If he says "Rabbet", he usually means "Pocket" or "Step".
+            # Let's provide BOTH vectors in the file (Hole and Shelf) so they can choose.
             
-            FLANGE_W = 0.6
-            RAIL_HOLE_DIA = 0.28125
-            LID_HOLE_DIA = 0.2
-            CLEARANCE = 0.25
-            
-            rail_r = RAIL_HOLE_DIA / 2.0
-            lid_r = LID_HOLE_DIA / 2.0
-            
-            # Offset from Corner of the SHELF/LID to the Center of the Hole
-            # "inset 1/4" from each edge" usually means from the solid material edge (corner of flange)
-            # to the start of the hole.
-            center_offset = CLEARANCE + rail_r
-            
-            # Shelf / Pocket Dimensions
-            # Flange adds to the Opening Size
-            shelf_x = bx - FLANGE_W
-            shelf_y = by - FLANGE_W
-            shelf_w = bh_w_in + (2 * FLANGE_W)
-            shelf_h = bh_h_in + (2 * FLANGE_W)
-            
-            hatch_elements = []
-            hatch_elements.append(create_svg_header(canvas_w, canvas_h, f"{rail_name}_HATCH_CUT"))
-            
-            # 1. Through Cut (Opening) - User Spec "Bottom Rail Hatch Rabbet Height must be ((Material Thickness /2) - Glue Gap)" implies Depth, but for 2D SVG we just draw vectors.
-            hatch_elements.append(create_rect(bx, by, bh_w_in, bh_h_in, COLOR_PERIMETER)) # Opening
-            
-            # 2. Shelf Pocket
-            hatch_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS)) # Shelf Perimeter
-            
-            # 3. Mating Holes (Rail Side) - Larger Holes
-            # Top-Left
-            hatch_elements.append(create_circle(shelf_x + center_offset, shelf_y + center_offset, rail_r, COLOR_HOLES))
-            # Top-Right
-            hatch_elements.append(create_circle(shelf_x + shelf_w - center_offset, shelf_y + center_offset, rail_r, COLOR_HOLES))
-            # Bottom-Left
-            hatch_elements.append(create_circle(shelf_x + center_offset, shelf_y + shelf_h - center_offset, rail_r, COLOR_HOLES))
-            # Bottom-Right
-            hatch_elements.append(create_circle(shelf_x + shelf_w - center_offset, shelf_y + shelf_h - center_offset, rail_r, COLOR_HOLES))
-            
+            hatch_elements.append(create_rect(bx, by, bh_w_in, bh_h_in, COLOR_PERIMETER)) # Through
+            hatch_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS)) # Shelf
             hatch_elements.append(create_svg_footer())
             files[f"{rail_name}_HATCH_CUT.v{version}.svg"] = "\n".join(hatch_elements)
             
-            # ------------------------------------------------------------------
-            # LID GENERATION
-            # ------------------------------------------------------------------
+            # 2. LID (Separate Part)
+            # Lid Size = Shelf Size (minus fit_tolerance? No, usually Lid matches Shelf Outer, Plug matches Hole).
+            # Lid Outer = Shelf Outer.
+            # Lid Plug (Inner Step) = Opening Size (minus fit adjustment).
+            
             lid_w = shelf_w
             lid_h = shelf_h
             
@@ -1215,87 +1171,22 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
             lid_elements = []
             lid_elements.append(create_svg_header(l_can_w, l_can_h, f"{rail_name}_HATCH_LID"))
             
-            # Perimeter (Matches Shelf Outer)
+            # Perimeter
             lid_elements.append(create_rect(lx, ly, lid_w, lid_h, COLOR_PERIMETER))
             
-            # Rabbet/Step (Matches Opening Size)
-            # Plug is centered
-            lr_x = lx + FLANGE_W
-            lr_y = ly + FLANGE_W
+            # Rabbet (Plug)
+            # Inner = Opening Size
+            lr_x = lx + flange_w
+            lr_y = ly + flange_w
             lid_elements.append(create_rect(lr_x, lr_y, bh_w_in, bh_h_in, COLOR_RABBETS))
             
-            # Holes (Matches Rail Centers, but Smaller Diameter)
-            # Use same center_offset relative to Lid Corner (lx, ly)
-            lid_elements.append(create_circle(lx + center_offset, ly + center_offset, lid_r, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + lid_w - center_offset, ly + center_offset, lid_r, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + center_offset, ly + lid_h - center_offset, lid_r, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + lid_w - center_offset, ly + lid_h - center_offset, lid_r, COLOR_HOLES))
-            
-            # ------------------------------------------------------------------
-            # NEMA 17 MOTOR FEATURES (Centered on Lid)
-            # ------------------------------------------------------------------
-            # Specs:
-            # Frame: 42.5mm x 42.5mm (w/ clearance)
-            # Mount Pattern: 31mm x 31mm
-            # Mount Holes: 3.5mm (M3 clearance) -> Through Holes
-            # Corner Radius: ~4mm
-            # Wiring Channel: 0.5" x 0.5"
-            
-            nema_body_in = convert_to_inches(42.5)
-            nema_mount_in = convert_to_inches(31.0)
-            nema_hole_r_in = convert_to_inches(3.5 / 2.0)
-            corner_r_in = convert_to_inches(4.0) # Rounded corners
-            
-            wire_w_in = 0.5
-            wire_l_in = 0.5
-            
-            # Lid Center
-            cx = lx + (lid_w / 2.0)
-            cy = ly + (lid_h / 2.0)
-            
-            # 1. Body Pocket + Wiring Channel (Unified Path)
-            # Coordinate Calculations
-            m_left = cx - nema_body_in/2
-            m_right = cx + nema_body_in/2
-            m_top = cy - nema_body_in/2
-            m_bot = cy + nema_body_in/2
-            
-            c_left = cx - wire_w_in/2
-            c_right = cx + wire_w_in/2
-            c_top = m_top - wire_l_in
-            
-            # Path Points (Clockwise, Start at Channel TL)
-            # Using f() helper which is available globally
-            
-            path_d = (
-                f"M {f(c_left)} {f(c_top)} " # Start Chan TL
-                f"L {f(c_right)} {f(c_top)} " # Chan TR
-                f"L {f(c_right)} {f(m_top)} " # Chan BR / Motor Intersection
-                f"L {f(m_right - corner_r_in)} {f(m_top)} " # Motor Top Edge to Arc Start
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_right)} {f(m_top + corner_r_in)} " # TR Arc
-                f"L {f(m_right)} {f(m_bot - corner_r_in)} " # Right Edge
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_right - corner_r_in)} {f(m_bot)} " # BR Arc
-                f"L {f(m_left + corner_r_in)} {f(m_bot)} " # Bottom Edge
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_left)} {f(m_bot - corner_r_in)} " # BL Arc
-                f"L {f(m_left)} {f(m_top + corner_r_in)} " # Left Edge
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_left + corner_r_in)} {f(m_top)} " # TL Arc
-                f"L {f(c_left)} {f(m_top)} " # Motor Top to Chan BL Intersection
-                f"Z" # Close path
-            )
-            
-            lid_elements.append(f'<path d="{path_d}" fill="none" stroke="{COLOR_POCKETS}" stroke-width="{STROKE_WIDTH}"/>')
-            
-            # 2. Pilot Hole REMOVED as per user request
-            
-            # 3. Mounting Holes (Through/Holes)
-            # 31mm Pattern
-            m_off = nema_mount_in / 2.0
-            
-            # If user wants them as "Holes" (Blue layer for drilling/pecking):
-            lid_elements.append(create_circle(cx - m_off, cy - m_off, nema_hole_r_in, COLOR_HOLES))
-            lid_elements.append(create_circle(cx + m_off, cy - m_off, nema_hole_r_in, COLOR_HOLES))
-            lid_elements.append(create_circle(cx - m_off, cy + m_off, nema_hole_r_in, COLOR_HOLES))
-            lid_elements.append(create_circle(cx + m_off, cy + m_off, nema_hole_r_in, COLOR_HOLES))
+            # Holes (4 corners)
+            hr = 0.1
+            coff = flange_w / 2.0
+            lid_elements.append(create_circle(lx + coff, ly + coff, hr, COLOR_HOLES))
+            lid_elements.append(create_circle(lx + lid_w - coff, ly + coff, hr, COLOR_HOLES))
+            lid_elements.append(create_circle(lx + coff, ly + lid_h - coff, hr, COLOR_HOLES))
+            lid_elements.append(create_circle(lx + lid_w - coff, ly + lid_h - coff, hr, COLOR_HOLES))
             
             lid_elements.append(create_svg_footer())
             
@@ -2599,7 +2490,7 @@ class ScrollableFrame(tk.Frame):
 class CarbideOptimizedApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("CNC Plywood Parametric Box Maker v1.27")
+        self.title("CNC Plywood Parametric Box Maker v1.26")
         self.geometry("900x850") 
         self.configure(bg="#f0f0f0")
         self.resizable(True, True) # User asked for resizable: "resizable in case it is used on a different machine"
@@ -2971,7 +2862,7 @@ class CarbideOptimizedApp(tk.Tk):
                    command=self.run_generation, font=("Lato", 15, "bold")).pack(pady=20)
 
 
-        tk.Label(container, text="v1.27", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")
+        tk.Label(container, text="v1.26", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")
 
         # Live Updates
         self._setup_live_preview_updates()

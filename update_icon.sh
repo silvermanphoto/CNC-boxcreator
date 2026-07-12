@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-SOURCE_ICON="Gemini McTell CNC Plans/App Photo Assets/Gemini_Generated_Image_8x9qnk8x9qnk8x9q.png"
+SOURCE_ICON="CNC Plans/App Photo Assets/Generated_Image_8x9qnk8x9qnk8x9q.png"
 ICONSET_DIR="MyIcon.iconset"
 DEST_ICNS="CNC Plywood Box Maker.app/Contents/Resources/Generator.icns"
 

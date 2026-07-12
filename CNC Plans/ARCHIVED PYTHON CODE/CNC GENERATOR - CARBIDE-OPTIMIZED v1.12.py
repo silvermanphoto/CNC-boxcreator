@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.27
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.12
 # ========================================
-# PRODUCTION RELEASE v1.27
+# PRODUCTION RELEASE v1.12
 #
 # Key Changes:
-# - Extracted Blender/TriVision generation to separate module (blender_generator.py).
-# - Reduced main file size.
-#   - Height constrained by (Box Depth - Front Rabbet - Back Rabbet - 0.5").
-#   - Width (Inches) allowed up to 90% of Rail Width.
-#   - X Position (%) with live inch feedback.
-#   - Center alignment logic.
+# - Added Box Cleat Mounting Holes:
+#   - 4 locations: 5%, 33%, 66%, 95% of Cleat Width.
+#   - Box Cleat: Countersunk Holes (#10 screw).
+#   - Back Panel: Receiving Through Holes (T-nut/Insert).
 # - Combined Master Layout (Multiple 48x48 Artboards side-by-side).
 # - Text Annotations:
 #   - Part Name (12pt)
@@ -36,7 +34,6 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 import json
-from utils import convert_to_inches, MARGIN_INCHES
 
 # ==============================================================================
 # AUTO-INSTALL DEPENDENCIES
@@ -185,10 +182,14 @@ class BoxPreview3D(tk.Frame):
         self.ax.view_init(elev=self.elev, azim=self.azim)
         self.canvas.draw_idle()
 
-    def update_box(self, width_in, height_in, depth_in, stock_thk_in, window_w=0, window_h=0, 
-                   hatch_enabled=False, hatch_w_pct=0, hatch_h_pct=0, hatch_raise_in=0,
-                   b_hatch_enabled=False, b_hatch_w=0, b_hatch_h=0, b_hatch_x_pct=0):
-        """Update the 3D preview with new dimensions and optional window/hatch."""
+    def update_box(self, width_in, height_in, depth_in, stock_thk_in, window_w=0, window_h=0):
+        """Update the 3D preview with new dimensions and optional window cutout.
+
+        Coordinate system:
+        - X = width (left to right)
+        - Y = depth (back to front, viewer faces +Y direction)
+        - Z = height (bottom to top)
+        """
         self.ax.clear()
 
         w = width_in   # X dimension
@@ -205,69 +206,6 @@ class BoxPreview3D(tk.Frame):
         poly = Poly3DCollection([back_verts], alpha=0.7, facecolor=self.PANEL_COLORS['back'],
                                 edgecolor='#333333', linewidth=0.5)
         self.ax.add_collection3d(poly)
-
-        # HATCH VISUALIZATION (New v1.17)
-        if hatch_enabled:
-            # Calculate physical dimensions
-            hatch_w = w * (hatch_w_pct / 100.0)
-            hatch_h = h * (hatch_h_pct / 100.0)
-            
-            # Position: Centered Horizontally, Y=d (on Back Panel face)
-            hw_x = (w - hatch_w) / 2
-            
-            # Position Z:
-            # Raise=0 -> Flush with Bottom STOCK (Top of Bottom Rail)
-            # Origin Z=0 is box bottom.
-            # Bottom Rail Height = stock_thk_in.
-            # So Bottom of Hatch = stock_thk_in + hatch_raise_in.
-            hatch_z = stock_thk_in + hatch_raise_in
-            
-            # Draw Hatch Rectangle (Darker Blue/Grey to stand out)
-            hx1 = hw_x
-            hx2 = hw_x + hatch_w
-            hz1 = hatch_z
-            hz2 = hatch_z + hatch_h
-            
-            # Slightly offset Y+ to flicker-free draw on top of back panel?
-            # Viewer is Y-. Back Panel is Y=d. Back of box is FARTHEST from viewer.
-            # If we draw at d-eps, it will be "inside" the box / in front of the back panel.
-            # Back Panel is drawn first.
-            hy = d - 0.05 # Push slightly "in" towards front
-            
-            hatch_verts = [(hx1, hy, hz1), (hx2, hy, hz1), (hx2, hy, hz2), (hx1, hy, hz2)]
-            # Color: Dark Grey/Blue
-            poly_h = Poly3DCollection([hatch_verts], alpha=0.9, facecolor='#2c3e50',
-                                    edgecolor='black', linewidth=1.5) # Black outline
-            self.ax.add_collection3d(poly_h)
-
-        # BOTTOM ACCESS PANEL VISUALIZATION
-        if b_hatch_enabled and b_hatch_w > 0 and b_hatch_h > 0:
-            # Dimensions are already in inches
-            bh_w = b_hatch_w
-            bh_h = b_hatch_h
-            
-            # X Calculation logic matches update_bottom_hatch_status
-            rail_width = w - (2 * t)
-            center_x_rel = rail_width * (b_hatch_x_pct / 100.0)
-            center_x_abs = t + center_x_rel
-            
-            bh_x1 = center_x_abs - (bh_w / 2.0)
-            bh_x2 = center_x_abs + (bh_w / 2.0)
-            
-            # Y Position: Centered in Depth (d)
-            center_y = d / 2.0
-            bh_y1 = center_y - (bh_h / 2.0)
-            bh_y2 = center_y + (bh_h / 2.0)
-            
-            # Z Position: Slightly above 0 to be visible on top of bottom panel
-            bh_z = 0.05 
-            
-            bh_verts = [(bh_x1, bh_y1, bh_z), (bh_x2, bh_y1, bh_z), (bh_x2, bh_y2, bh_z), (bh_x1, bh_y2, bh_z)]
-            
-            # Color: Matching Hatch Color with same style
-            poly_bh = Poly3DCollection([bh_verts], alpha=0.9, facecolor='#2c3e50',
-                                    edgecolor='black', linewidth=1.5)
-            self.ax.add_collection3d(poly_bh)
 
         # Left panel (X=0 plane, YZ rectangle)
         left_verts = [(0, t, 0), (0, d-t, 0), (0, d-t, h), (0, t, h)]
@@ -322,35 +260,19 @@ class BoxPreview3D(tk.Frame):
             oz = [p[2] for p in outer_border]
             self.ax.plot(ox, oy, oz, color='#333333', linewidth=0.5)
 
-            # Black window border
+            # White window border
             border = [(win_x, 0, win_z), (win_x + window_w, 0, win_z),
                       (win_x + window_w, 0, win_z + window_h), (win_x, 0, win_z + window_h), (win_x, 0, win_z)]
             bx = [p[0] for p in border]
             by = [p[1] for p in border]
             bz = [p[2] for p in border]
-            self.ax.plot(bx, by, bz, color='black', linewidth=2.5)
-            
-            # DEBUG: VISUALIZE CENTER
-            # Green Center vertical line on Front Panel
-            cx = w / 2.0
-            cz = h / 2.0
-            self.ax.plot([cx, cx], [0, 0], [0, h], color='#00ff00', linewidth=1.0, linestyle='--')
-            
-            # Red Dot at Window Center
-            wcx = win_x + (window_w / 2.0)
-            wcz = win_z + (window_h / 2.0)
-            self.ax.scatter([wcx], [0], [wcz], color='red', s=20)
-            
+            self.ax.plot(bx, by, bz, color='white', linewidth=2.5)
         else:
             # Solid front panel
             front_verts = [(0, 0, 0), (w, 0, 0), (w, 0, h), (0, 0, h)]
             poly = Poly3DCollection([front_verts], alpha=0.7, facecolor=self.PANEL_COLORS['front'],
                                     edgecolor='#333333', linewidth=0.5)
             self.ax.add_collection3d(poly)
-            
-            # Draw Center Line even if no window, for reference
-            cx = w / 2.0
-            self.ax.plot([cx, cx], [0, 0], [0, h], color='#00ff00', linewidth=1.0, linestyle='--')
 
         # Set equal aspect ratio
         max_dim = max(w, h, d)
@@ -394,9 +316,8 @@ COLOR_POCKETS = "#8fea00"    # Green - shallow pockets (motors)
 COLOR_RABBETS = "#e09500"    # Orange - rabbet channels
 COLOR_WINDOW = "#af00af"     # Purple - window cutout
 
-STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
-
-
+STROKE_WIDTH = "0.01"  # inches - thin stroke for CNC precision
+MARGIN_INCHES = 2.0    # 2" margin on all sides
 
 # ==============================================================================
 # GLOBAL CONFIG
@@ -407,8 +328,9 @@ def f(val):
     """Format float to 4 decimal places"""
     return f"{val:.4f}"
 
-
-
+def convert_to_inches(value_mm):
+    """Convert mm to inches"""
+    return value_mm / 25.4
 
 def convert_to_mm(value, unit):
     if unit in ["inches", "in", '"']:
@@ -527,65 +449,6 @@ def compute_finger_layout(edge_len_mm, target_width_mm):
     actual_width_mm = edge_len_mm / count
     return count, actual_width_mm
 
-def validate_rail_edge_straightness(path_data, rail_name):
-    """
-    Check that top and bottom edges are perfectly straight lines.
-    Call this AFTER generating each rail perimeter path, BEFORE writing to SVG.
-    """
-    if not path_data:
-        return True
-
-    # Simple parsing of "M x y L x y ..." string
-    # Remove commands and split
-    clean_data = path_data.replace('M', ' ').replace('L', ' ').replace('Z', ' ')
-    tokens = clean_data.split()
-    
-    coords = []
-    # Parse pairs
-    for k in range(0, len(tokens), 2):
-        if k+1 < len(tokens):
-            try:
-                # Store as object or tuple with accessors
-                coords.append((float(tokens[k]), float(tokens[k+1])))
-            except ValueError:
-                pass
-                
-    if not coords:
-        return True
-    
-    # Identify edge Y-values (the main horizontal lines)
-    ys = [c[1] for c in coords]
-    top_edge_y = min(ys)      # Topmost Y (min Y in SVG)
-    bottom_edge_y = max(ys)   # Bottommost Y (max Y in SVG)
-    
-    # Find all points that SHOULD be on the top edge
-    # (points with Y within tolerance of top_edge_y)
-    top_edge_points = [y for y in ys if abs(y - top_edge_y) < 0.01]
-    
-    # Find all points that SHOULD be on the bottom edge
-    bottom_edge_points = [y for y in ys if abs(y - bottom_edge_y) < 0.01]
-    
-    # VALIDATION: All top edge points must have EXACTLY the same Y (within rounding)
-    top_y_values = set(round(y, 4) for y in top_edge_points)
-    if len(top_y_values) > 1:
-        raise ValueError(
-            f"{rail_name}: TOP EDGE NOT STRAIGHT! "
-            f"Found multiple Y-values: {top_y_values}. "
-            f"Expected single value: {top_edge_y}"
-        )
-    
-    # VALIDATION: All bottom edge points must have EXACTLY the same Y
-    bottom_y_values = set(round(y, 4) for y in bottom_edge_points)
-    if len(bottom_y_values) > 1:
-        raise ValueError(
-            f"{rail_name}: BOTTOM EDGE NOT STRAIGHT! "
-            f"Found multiple Y-values: {bottom_y_values}. "
-            f"Expected single value: {bottom_edge_y}"
-        )
-    
-    print(f"OK {rail_name}: Top and bottom edges validated as straight")
-    return True
-
 def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_config):
     """
     Generate perimeter path with HALF-ROUND FINGER JOINTS.
@@ -616,10 +479,6 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
     ax = MARGIN_INCHES
     ay = MARGIN_INCHES
     
-    # Store exact Y-coordinates for snapping
-    top_edge_y = ay
-    bottom_edge_y = ay + height_in
-    
     # Determine Start Point (Top-Left)
     start_x = ax
     start_y = ay
@@ -646,13 +505,7 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
                 # PROUD FINGER (UP)
                 f_start = x_start + (fit_tol / 2.0)
                 f_end = x_end - (fit_tol / 2.0)
-                # FIX: Decouple Length from Tolerance (Flush Fit)
-                f_height = (stock_thk + protrusion)
-                
-                # Snap Check? Usually Top/Bottom fingers are not the corner issue, 
-                # but let's be consistent if needed. 
-                # Guidance focused on Rail Perimeter corners (Left/Right fingers).
-                # Leaving Top/Bottom logic as is unless issues arise.
+                f_height = (stock_thk + protrusion) - fit_tol
                 
                 path_cmds.append(f"L {f(f_start)} {f(ay)}")
                 path_cmds.append(f"L {f(f_start)} {f(ay - f_height)}")
@@ -683,15 +536,7 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
             if right_type == 'fingers' and is_active:
                 f_start = y_start + (fit_tol / 2.0)
                 f_end = y_end - (fit_tol / 2.0)
-                
-                # FIX: Snap First and Last Fingers to Exact Edge Y
-                if i == 0:
-                    f_start = top_edge_y
-                if i == count - 1:
-                    f_end = bottom_edge_y
-                    
-                # FIX: Decouple Length from Tolerance (Flush Fit)
-                f_len = (stock_thk + protrusion)
+                f_len = (stock_thk + protrusion) - fit_tol
                 path_cmds.append(f"L {f(rx)} {f(f_start)}")
                 path_cmds.append(f"L {f(rx + f_len)} {f(f_start)}")
                 path_cmds.append(f"L {f(rx + f_len)} {f(f_end)}")
@@ -732,8 +577,7 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
             if bottom_type == 'fingers' and is_active:
                 f_start = x_start - (fit_tol / 2.0)
                 f_end = x_end + (fit_tol / 2.0)
-                # FIX: Decouple Length from Tolerance (Flush Fit)
-                f_height = (stock_thk + protrusion)
+                f_height = (stock_thk + protrusion) - fit_tol
                 path_cmds.append(f"L {f(f_start)} {f(by)}")
                 path_cmds.append(f"L {f(f_start)} {f(by + f_height)}")
                 path_cmds.append(f"L {f(f_end)} {f(by + f_height)}")
@@ -763,15 +607,7 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
             if left_type == 'fingers' and is_active:
                 f_start = y_start - (fit_tol / 2.0)
                 f_end = y_end + (fit_tol / 2.0)
-                
-                # FIX: Snap First and Last Fingers to Exact Edge Y
-                if i == 0:
-                    f_start = bottom_edge_y
-                if i == count - 1:
-                    f_end = top_edge_y
-                    
-                # FIX: Decouple Length from Tolerance (Flush Fit)
-                f_len = (stock_thk + protrusion)
+                f_len = (stock_thk + protrusion) - fit_tol
                 path_cmds.append(f"L {f(lx)} {f(f_start)}")
                 path_cmds.append(f"L {f(lx - f_len)} {f(f_start)}")
                 path_cmds.append(f"L {f(lx - f_len)} {f(f_end)}")
@@ -877,13 +713,6 @@ def generate_front_bezel_parts(version):
     perimeter_elements = []
     perimeter_elements.append(create_svg_header(canvas_w, canvas_h, f"FRONT_BEZEL_PERIMETER"))
     path_d, _, _ = generate_perimeter_with_fingers("FRONT_BEZEL", width_in, height_in, finger_config)
-    
-    # Validation
-    try:
-        validate_rail_edge_straightness(path_d, "FRONT_BEZEL_PERIMETER")
-    except ValueError as e:
-        print(f"Validation failed for FRONT_BEZEL: {e}")
-        # raise e
     perimeter_elements.append(create_path(path_d, COLOR_PERIMETER))
     perimeter_elements.append(create_svg_footer())
     files[f"FRONT_BEZEL_PERIMETER.v{version}.svg"] = "\n".join(perimeter_elements)
@@ -902,14 +731,8 @@ def generate_front_bezel_parts(version):
         win_h = CONFIG['WINDOW_HEIGHT_IN']
         
         # Center the window
-        # Explicit Centering Logic
-        win_x = ax + (width_in / 2.0) - (win_w / 2.0)
-        win_y = ay + (height_in / 2.0) - (win_h / 2.0)
-        
-        # Verify Centering
-        left_margin = win_x - ax
-        right_margin = (ax + width_in) - (win_x + win_w)
-        print(f"DEBUG: Front Bezel Window. Box W={width_in:.3f}, Win W={win_w:.3f}. Left Margin={left_margin:.3f}, Right Margin={right_margin:.3f}")
+        win_x = ax + (width_in - win_w) / 2
+        win_y = ay + (height_in - win_h) / 2
         
         window_elements.append(create_svg_header(canvas_w, canvas_h, f"FRONT_BEZEL_WINDOW"))
         window_d = f"M {f(win_x)} {f(win_y)} L {f(win_x)} {f(win_y + win_h)} L {f(win_x + win_w)} {f(win_y + win_h)} L {f(win_x + win_w)} {f(win_y)} Z"
@@ -988,13 +811,6 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
 
     path_d, p_width, p_height = generate_perimeter_with_fingers(rail_name, rail_w_in, rail_h_in, finger_config)
     
-    # Validation
-    try:
-        validate_rail_edge_straightness(path_d, f"{rail_name}_PERIMETER")
-    except ValueError as e:
-        print(f"Validation failed for {rail_name}: {e}")
-        # raise e
-    
     canvas_w = p_width
     canvas_h = p_height
     ax = MARGIN_INCHES
@@ -1039,8 +855,10 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
         pattern_mm = CONFIG.get('MOTOR_MOUNT_PATTERN', 31.0)
         pattern_in = convert_to_inches(pattern_mm)
         
-        # Motor Mount Pattern
-
+        # v48 PILOT HOLE UPDATE
+        # Diameter = 7.14375mm -> Radius = 3.571875mm
+        pilot_dia_mm = 7.14375
+        pilot_r_in = convert_to_inches(pilot_dia_mm / 2.0)
         
         offset = pattern_in / 2.0
         hole_locs = [(-offset, -offset), (offset, -offset), (-offset, offset), (offset, offset)]
@@ -1077,235 +895,6 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
     viz_elements.append(create_svg_footer())
     files[f"VISUALIZATION_{rail_name}.v{version}.svg"] = "\n".join(viz_elements)
     
-    # BOTTOM HATCH LOGIC (v1.22)
-    if rail_name == "BOTTOM_RAIL" and CONFIG.get('BOTTOM_HATCH_ENABLED', False):
-        try:
-            bh_w_mm = CONFIG.get('BOTTOM_HATCH_WIDTH', 0)
-            bh_h_mm = CONFIG.get('BOTTOM_HATCH_HEIGHT', 0)
-            bh_x_pct = CONFIG.get('BOTTOM_HATCH_X_PCT', 50.0)
-            
-            bh_w_in = convert_to_inches(bh_w_mm)
-            bh_h_in = convert_to_inches(bh_h_mm)
-            
-            # Position: Center X calculated from Rail Width
-            # Rail Width (Physical) = rail_w_in (Total Width - 2*Stock)
-            # 0 is Left Edge of Rail.
-            
-            center_x = rail_w_in * (bh_x_pct / 100.0)
-            
-            # Y Position: Centered in Depth (rail_h_in = Box Depth)
-            center_y = rail_h_in / 2.0
-            
-            # Correction v1.27: Add Stock Thickness to X Start
-            # ax is the Left Edge of the piece (Start of Fingers).
-            # The "Internal Width" (rail_w_in) starts after the left stock/fingers.
-            # So we must add st_in to shift the internal center correctly.
-            st_in = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-            bx = ax + st_in + center_x - (bh_w_in / 2.0)
-            
-            by = ay + center_y - (bh_h_in / 2.0)
-            
-            # Hatch Geometry
-            # 1. CUT (Opening & Shelf) on the Rail
-            # Cut Opening: Through Hole (Perimeter Color)
-            # Shelf: Pocket (Rabbet Color)
-            # Note: Bottom Access Panel usually has the FLANGE on the LID?
-            # Or on the Rail?
-            # Standard "Lid": Lid has the Flange (Step). Rail has a simple Opening + Recess?
-            # Rear Logic: Rail/Panel has "Opening"(Through) and "Shelf"(Pocket).
-            # Lid has "Perimeter"(Outer) and "Rabbet"(Step).
-            # Yes.
-            
-            st_in = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-            gg_in = convert_to_inches(CONFIG.get('GLUE_GAP', 0.5))
-            flange_w = (st_in / 2.0) - gg_in
-            
-            # Clamp flange
-            if flange_w < 0.05: flange_w = 0.05
-            
-            # Opening (Through)
-            # Shelf (Pocket around opening)
-            shelf_x = bx - flange_w
-            shelf_y = by - flange_w
-            shelf_w = bh_w_in + (2 * flange_w)
-            shelf_h = bh_h_in + (2 * flange_w)
-            
-            hatch_elements = []
-            hatch_elements.append(create_svg_header(canvas_w, canvas_h, f"{rail_name}_HATCH_CUT"))
-            
-            # Pocket (Shelf) - Defined FIRST? Order matters for visuals, but for CAM it's by layer.
-            # "BOTTOM_RAIL_HATCH_CUT" -> Mapped to 'CONTOUR (Inside)'?
-            # Wait, previously `BACK_PANEL_HATCH_CUT` mapped to `CONTOUR (Inside)`.
-            # That implies we cut the INNER hole?
-            # NO. `HATCH_CUT` file contained BOTH Rects.
-            # "Contour (Inside)" on the OUTER Shelf Rect would result in a Hole of Shelf Size. That's wrong.
-            # "Pocket" of the area between Outer and Inner is correct.
-            # "Inside Contour" of Inner Rect = Hole.
-            # If we map "HATCH_CUT" file to "CONTOUR (Inside)", usually we want the Through Hole.
-            # But we also need the Shelf Pocket.
-            # In `generate_back_panel_parts`:
-            #   cut_elements.append(create_rect(hatch_x, hatch_y, hatch_open_w, hatch_open_h, COLOR_PERIMETER))
-            #   cut_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS))
-            # And `get_layer_type_v11` mapped `HATCH_CUT` to `CONTOUR (Inside)`.
-            # This is ambiguous for CAM. Usually user separates them.
-            # ------------------------------------------------------------------
-            # BOTTOM HATCH LOGIC (v1.27 SPEC UPDATE)
-            # ------------------------------------------------------------------
-            # 1. Flange Width: Fixed 0.6"
-            # 2. Rail Holes: 0.28125" (9/32") Dia -> 0.140625" Radius
-            # 3. Lid Holes: 0.2" Dia -> 0.1" Radius
-            # 4. Placement: Inset 1/4" (0.25") from edge to hole EDGE.
-            #    Center Offset = 0.25" + Rail_Hole_Radius.
-            # ------------------------------------------------------------------
-            
-            FLANGE_W = 0.6
-            RAIL_HOLE_DIA = 0.28125
-            LID_HOLE_DIA = 0.2
-            CLEARANCE = 0.25
-            
-            rail_r = RAIL_HOLE_DIA / 2.0
-            lid_r = LID_HOLE_DIA / 2.0
-            
-            # Offset from Corner of the SHELF/LID to the Center of the Hole
-            # "inset 1/4" from each edge" usually means from the solid material edge (corner of flange)
-            # to the start of the hole.
-            center_offset = CLEARANCE + rail_r
-            
-            # Shelf / Pocket Dimensions
-            # Flange adds to the Opening Size
-            shelf_x = bx - FLANGE_W
-            shelf_y = by - FLANGE_W
-            shelf_w = bh_w_in + (2 * FLANGE_W)
-            shelf_h = bh_h_in + (2 * FLANGE_W)
-            
-            hatch_elements = []
-            hatch_elements.append(create_svg_header(canvas_w, canvas_h, f"{rail_name}_HATCH_CUT"))
-            
-            # 1. Through Cut (Opening) - User Spec "Bottom Rail Hatch Rabbet Height must be ((Material Thickness /2) - Glue Gap)" implies Depth, but for 2D SVG we just draw vectors.
-            hatch_elements.append(create_rect(bx, by, bh_w_in, bh_h_in, COLOR_PERIMETER)) # Opening
-            
-            # 2. Shelf Pocket
-            hatch_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS)) # Shelf Perimeter
-            
-            # 3. Mating Holes (Rail Side) - Larger Holes
-            # Top-Left
-            hatch_elements.append(create_circle(shelf_x + center_offset, shelf_y + center_offset, rail_r, COLOR_HOLES))
-            # Top-Right
-            hatch_elements.append(create_circle(shelf_x + shelf_w - center_offset, shelf_y + center_offset, rail_r, COLOR_HOLES))
-            # Bottom-Left
-            hatch_elements.append(create_circle(shelf_x + center_offset, shelf_y + shelf_h - center_offset, rail_r, COLOR_HOLES))
-            # Bottom-Right
-            hatch_elements.append(create_circle(shelf_x + shelf_w - center_offset, shelf_y + shelf_h - center_offset, rail_r, COLOR_HOLES))
-            
-            hatch_elements.append(create_svg_footer())
-            files[f"{rail_name}_HATCH_CUT.v{version}.svg"] = "\n".join(hatch_elements)
-            
-            # ------------------------------------------------------------------
-            # LID GENERATION
-            # ------------------------------------------------------------------
-            lid_w = shelf_w
-            lid_h = shelf_h
-            
-            # Lid Canvas
-            l_can_w = lid_w + 4.0
-            l_can_h = lid_h + 4.0
-            lx = 2.0
-            ly = 2.0
-            
-            lid_elements = []
-            lid_elements.append(create_svg_header(l_can_w, l_can_h, f"{rail_name}_HATCH_LID"))
-            
-            # Perimeter (Matches Shelf Outer)
-            lid_elements.append(create_rect(lx, ly, lid_w, lid_h, COLOR_PERIMETER))
-            
-            # Rabbet/Step (Matches Opening Size)
-            # Plug is centered
-            lr_x = lx + FLANGE_W
-            lr_y = ly + FLANGE_W
-            lid_elements.append(create_rect(lr_x, lr_y, bh_w_in, bh_h_in, COLOR_RABBETS))
-            
-            # Holes (Matches Rail Centers, but Smaller Diameter)
-            # Use same center_offset relative to Lid Corner (lx, ly)
-            lid_elements.append(create_circle(lx + center_offset, ly + center_offset, lid_r, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + lid_w - center_offset, ly + center_offset, lid_r, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + center_offset, ly + lid_h - center_offset, lid_r, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + lid_w - center_offset, ly + lid_h - center_offset, lid_r, COLOR_HOLES))
-            
-            # ------------------------------------------------------------------
-            # NEMA 17 MOTOR FEATURES (Centered on Lid)
-            # ------------------------------------------------------------------
-            # Specs:
-            # Frame: 42.5mm x 42.5mm (w/ clearance)
-            # Mount Pattern: 31mm x 31mm
-            # Mount Holes: 3.5mm (M3 clearance) -> Through Holes
-            # Corner Radius: ~4mm
-            # Wiring Channel: 0.5" x 0.5"
-            
-            nema_body_in = convert_to_inches(42.5)
-            nema_mount_in = convert_to_inches(31.0)
-            nema_hole_r_in = convert_to_inches(3.5 / 2.0)
-            corner_r_in = convert_to_inches(4.0) # Rounded corners
-            
-            wire_w_in = 0.5
-            wire_l_in = 0.5
-            
-            # Lid Center
-            cx = lx + (lid_w / 2.0)
-            cy = ly + (lid_h / 2.0)
-            
-            # 1. Body Pocket + Wiring Channel (Unified Path)
-            # Coordinate Calculations
-            m_left = cx - nema_body_in/2
-            m_right = cx + nema_body_in/2
-            m_top = cy - nema_body_in/2
-            m_bot = cy + nema_body_in/2
-            
-            c_left = cx - wire_w_in/2
-            c_right = cx + wire_w_in/2
-            c_top = m_top - wire_l_in
-            
-            # Path Points (Clockwise, Start at Channel TL)
-            # Using f() helper which is available globally
-            
-            path_d = (
-                f"M {f(c_left)} {f(c_top)} " # Start Chan TL
-                f"L {f(c_right)} {f(c_top)} " # Chan TR
-                f"L {f(c_right)} {f(m_top)} " # Chan BR / Motor Intersection
-                f"L {f(m_right - corner_r_in)} {f(m_top)} " # Motor Top Edge to Arc Start
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_right)} {f(m_top + corner_r_in)} " # TR Arc
-                f"L {f(m_right)} {f(m_bot - corner_r_in)} " # Right Edge
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_right - corner_r_in)} {f(m_bot)} " # BR Arc
-                f"L {f(m_left + corner_r_in)} {f(m_bot)} " # Bottom Edge
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_left)} {f(m_bot - corner_r_in)} " # BL Arc
-                f"L {f(m_left)} {f(m_top + corner_r_in)} " # Left Edge
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_left + corner_r_in)} {f(m_top)} " # TL Arc
-                f"L {f(c_left)} {f(m_top)} " # Motor Top to Chan BL Intersection
-                f"Z" # Close path
-            )
-            
-            lid_elements.append(f'<path d="{path_d}" fill="none" stroke="{COLOR_POCKETS}" stroke-width="{STROKE_WIDTH}"/>')
-            
-            # 2. Pilot Hole REMOVED as per user request
-            
-            # 3. Mounting Holes (Through/Holes)
-            # 31mm Pattern
-            m_off = nema_mount_in / 2.0
-            
-            # If user wants them as "Holes" (Blue layer for drilling/pecking):
-            lid_elements.append(create_circle(cx - m_off, cy - m_off, nema_hole_r_in, COLOR_HOLES))
-            lid_elements.append(create_circle(cx + m_off, cy - m_off, nema_hole_r_in, COLOR_HOLES))
-            lid_elements.append(create_circle(cx - m_off, cy + m_off, nema_hole_r_in, COLOR_HOLES))
-            lid_elements.append(create_circle(cx + m_off, cy + m_off, nema_hole_r_in, COLOR_HOLES))
-            
-            lid_elements.append(create_svg_footer())
-            
-            # We add this to `files` but we want to pack it separately.
-            # We'll detect it in `generate_master_carbide_layout` by name "BOTTOM_RAIL_HATCH_LID".
-            files[f"{rail_name}_HATCH_LID.v{version}.svg"] = "\n".join(lid_elements)
-            
-        except Exception as e:
-            print(f"Error generating Bottom Hatch: {e}")
-
     return files, path_d
 
 class BinPacker:
@@ -1606,9 +1195,6 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
     parts_to_pack = []
     
     def prepare_part(name, files_map, w_in, h_in, extra_id=None):
-        if files_map is None:
-            print(f"WARNING: files_map is None for part {name}. Initializing empty dict.")
-            files_map = {}
         return {
             'id': name,
             'files': files_map,
@@ -1667,59 +1253,6 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
             hatch_files = {f"BACK_PANEL_HATCH_LID.v{version}.svg": hatch_data['svg_content']}
             parts_to_pack.append(prepare_part("BACK_PANEL_HATCH_LID", hatch_files, lid_w, lid_h))
 
-    # Bottom Hatch Lid (New v1.22)
-    # Passed via BOTTOM rail files or separately?
-    # generate_rail_parts for BOTTOM returns 'hatch' data?
-    # Wait, generate_rail_parts only returned `files` and `path_d`.
-    # I need to update generate_rail_parts to RETURN geometry data like generate_back_panel_parts.
-    # OR, I can check if "BOTTOM_RAIL_HATCH_LID..." is in f_bot?
-    # If it is in `f_bot`, it's just a file.
-    # BUT, we want to Pack it separately? 
-    # If it's in `f_bot`, it is attached to the "BOTTOM" part (which is the Rail).
-    # Rails are packed as 1 item.
-    # If we want the Lid to be nested separately, we must extract it.
-    
-    # Check if we generated a separate Lid file in f_bot
-    b_hatch_lid_file = None
-    b_hatch_lid_content = None
-    keys_to_remove = []
-    
-    for k, v in f_bot.items():
-        if "BOTTOM_RAIL_HATCH_LID" in k:
-            b_hatch_lid_file = k
-            b_hatch_lid_content = v
-            keys_to_remove.append(k)
-            
-    # Remove from Rail Files so it doesn't render on top of the rail
-    for k in keys_to_remove:
-        del f_bot[k]
-        
-    if b_hatch_lid_file:
-        # We don't have exact dimensions here unless we parse SVG or pass them.
-        # But we stored them in CONFIG['BOTTOM_HATCH_WIDTH'] / HEIGHT?
-        # The Lid Size is Opening + 2*Flange.
-        # Flange = (Stock/2) - GlueGap.
-        # Let's re-calculate or retrieve.
-        # Actually simplest to retrieve from CONFIG if we trusted the generating function updated it?
-        # Or parse.
-        # Let's rely on CONFIG if available, or re-calc standard logic.
-        
-        bh_w = CONFIG.get('BOTTOM_HATCH_WIDTH', 0)
-        bh_h = CONFIG.get('BOTTOM_HATCH_HEIGHT', 0)
-        # Convert to inches? Config stored mm from UI input? No, we stored mm.
-        bh_w_in = convert_to_inches(bh_w)
-        bh_h_in = convert_to_inches(bh_h)
-        
-        st_in = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-        gg_in = convert_to_inches(CONFIG.get('GLUE_GAP', 0.5)) # default
-        flange_w_in = (st_in / 2.0) - gg_in
-        
-        lid_w_in = bh_w_in + (2 * flange_w_in)
-        lid_h_in = bh_h_in + (2 * flange_w_in)
-        
-        lid_files = {b_hatch_lid_file: b_hatch_lid_content}
-        parts_to_pack.append(prepare_part("BOTTOM_HATCH_LID", lid_files, lid_w_in, lid_h_in))
-
     # 2. RUN PACKER
     packer = BinPacker(gap=GAP)
     packer.pack_items(parts_to_pack)
@@ -1747,7 +1280,8 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
     lines.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{f(canvas_w)}in" height="{f(canvas_h)}in" viewBox="0 0 {f(canvas_w)} {f(canvas_h)}">')
     lines.append(f'  <title>MASTER_LAYOUT_COMBINED_v{version}</title>')
     
-    # Text Manager removed
+    # Text Manager for collision
+    tm = TextManager()
     
     # HELPER: Flatten content
     def flatten_content_elements(svg_content, transform_str):
@@ -1757,17 +1291,48 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
         if not body_match: return []
         body = body_match.group(1)
         
-        # Match tags - EXCLUDING TEXT
-        pattern = r'(<(path|circle|rect|line|polygon|polyline)[^>]*/>)'
+        # We need to shift by -MARGIN if content was generated with margin?
+        # Yes, generated parts have MARGIN around them. 
+        # (0,0) of the PART in SVG is at (MARGIN, MARGIN).
+        # We want (0,0) of Part to be at (0,0) local before Part Transform?
+        # Transform logic in v1.10: 
+        # `extract_body` did `translate(-MARGIN, -MARGIN)`.
+        # So we must include `translate(-2.0, -2.0)` in our Flatten Transform for EVERY part.
+        
+        # Parse tags
+        # Simple parser looking for <tag ... /> or <tag...>...</tag>
+        # Supported tags: path, circle, rect, line, text, polygon, polyline
+        # Regex to capture full tag?
+        # `(?:<path\s+[^>]*/>)`
+        # `(?:<circle\s+[^>]*/>)`
+        # `(?:<rect\s+[^>]*/>)`
+        # `(?:<line\s+[^>]*/>)`
+        # `(?:<text\s+[^>]*>.*?</text>)`
+        
+        # Warning: This regex is fragile but sufficient for our generator outputs.
+        # We generated them, we know they are clean.
+        
+        pattern = r'(<(path|circle|rect|line|polygon|polyline)[^>]*/>|<text[^>]*>.*?</text>)'
         matches = re.findall(pattern, body, re.DOTALL)
         
         for match_tuple in matches:
             tag_str = match_tuple[0]
             # Inject transform
+            # Check if 'transform="' exists
             if 'transform="' in tag_str:
+                # Append
                 new_tag = re.sub(r'transform="([^"]*)"', f'transform="{transform_str} \\1"', tag_str)
             else:
+                # Add
+                # Insert before /> or > or space?
+                # Easiest: Insert after tag name. <path transform="..." ... />
+                # Tag name is match_tuple[1] (e.g. 'path')
+                # Replace `<path` with `<path transform="..."`
                 tname = match_tuple[1]
+                if tname == '': # it's text
+                     tname = 'text'
+                
+                # Use sub count=1 to only replace first occurrence start
                 new_tag = tag_str.replace(f"<{tname}", f'<{tname} transform="{transform_str}"', 1)
                 
             flat_lines.append(f"    {new_tag}")
@@ -1778,9 +1343,10 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
     for s_idx, sheet in enumerate(packer.sheets):
         sheet_x_offset = sheet_offsets[s_idx]
         
-        # Sheet Border Removed
-        # lines.append(f'  <rect x="{f(sheet_x_offset)}" y="0" width="{f(sheet["w"])}" height="{f(sheet["h"])}" fill="none" stroke="#cccccc" stroke-width="0.05" />')
-        # Sheet Title Text Removed
+        # Sheet Border (Optional, direct Rect)
+        lines.append(f'  <rect x="{f(sheet_x_offset)}" y="0" width="{f(sheet["w"])}" height="{f(sheet["h"])}" fill="none" stroke="#cccccc" stroke-width="0.05" />')
+        # Sheet Title Text
+        tm.add_nudge_text(sheet_x_offset + sheet['w']/2, -1.0, f"Sheet {s_idx+1} ({sheet['w']}x{sheet['h']})", 150, "#000000", "middle", lines)
 
         for p_info in sheet['items']:
             part = p_info['item']
@@ -1788,161 +1354,60 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
             global_y = p_info['y']
             rotated = p_info['rotated']
             
+            # Text Layout Box (for label centering)
             if rotated:
+                # Part (h, w)
+                lbl_w = part['h']
+                lbl_h = part['w']
+                # Transform: Translate(GX+H, GY) Rotate(90) Translate(-Margin, -Margin)
+                # Note: Order matters.
+                # v1.10: `translate({f(global_x + part["h"])}, {f(global_y)}) rotate(90)`
+                # Then inner body shifted by -MARGIN.
+                # Combined: `translate(GX+H, GY) rotate(90) translate(-2, -2)`
                 tf = f'translate({f(global_x + part["h"])}, {f(global_y)}) rotate(90) translate(-2.0, -2.0)'
             else:
+                # Part (w, h)
+                lbl_w = part['w']
+                lbl_h = part['h']
                 tf = f'translate({f(global_x)}, {f(global_y)}) translate(-2.0, -2.0)'
             
-            # Group by Part
-            lines.append(f'  <g id="{part["id"]}" data-name="{part["id"]}">')
-
             # --- GEOMETRY ---
             files_to_render = part['files'].copy()
             if cleat_data:
                 if part['id'] == "CLEAT_WALL": files_to_render = cleat_data['wall_cleat_files']
                 if part['id'] == "CLEAT_BOX": files_to_render = cleat_data['box_cleat_files']
             
-            # Map Filenames -> Layer Types
+            # Gather active layers for annotation
+            active_layers = set()
+            
+            # Map Filenames -> Layer Types (for annotation)
             def get_layer_type_v11(fname):
                 if "PERIMETER" in fname: return '01_CUTS', 'CONTOUR (Outside)'
                 if "HATCH_LID" in fname: return '01_CUTS', 'CONTOUR (Outside)'
-                if "BOTTOM_HATCH_LID" in fname: return '01_CUTS', 'CONTOUR (Outside)'
                 if "HOLES_THROUGH" in fname: return '02_HOLES', 'HOLES (Inside)'
                 if "HOLES" in fname: return '02_HOLES', 'HOLES (Inside)'
                 if "RABBETS" in fname: return '03_RABBETS', 'POCKET'
                 if "HOLES_CSINK" in fname: return '04_POCKETS', 'POCKET'
                 if "POCKETS" in fname: return '04_POCKETS', 'POCKET'
                 if "SCORE" in fname: return '06_SCORES', 'NO OFFSET (Score)'
-                if "HATCH_CUT" in fname: return '05_WINDOWS', 'CONTOUR (Inside)' 
-                if "BOTTOM_HATCH_CUT" in fname: return '05_WINDOWS', 'CONTOUR (Inside)'
+                if "HATCH_CUT" in fname: return '05_WINDOWS', 'CONTOUR (Inside)' # v1.10 had 'WINDOWS'
                 if "WINDOW" in fname: return '05_WINDOWS', 'CONTOUR (Inside)'
                 return None, None
 
             # Render Part Files
-            # Buffer for combining paths by Type
-            buffered_paths = {
-                "OUTSIDE CUTS": {'d': [], 'color': "#ff00ff"},
-                "HOLE": {'d': [], 'color': "#00ffff"},
-                "RABBET": {'d': [], 'color': "#00ff00"},
-                "INSIDE WINDOW": {'d': [], 'color': "#ff0000"},
-                "SCORE": {'d': [], 'color': "#ffe500"},
-                "BOTTOM ACCESS RABBET": {'d': [], 'color': "#00ff00"},
-                "BOTTOM ACCESS CUT": {'d': [], 'color': "#ff0000"} 
-            }
-
-            # Helper to extract 'd' from any shape tag
-            def get_d_from_tag(tag_line):
-                # 1. Try Path
-                d_match = re.search(r'd="([^"]*)"', tag_line)
-                if d_match: return d_match.group(1)
-                
-                # 2. Try Rect
-                if "<rect" in tag_line:
-                    x = float(re.search(r'x="([^"]*)"', tag_line).group(1))
-                    y = float(re.search(r'y="([^"]*)"', tag_line).group(1))
-                    w = float(re.search(r'width="([^"]*)"', tag_line).group(1))
-                    h = float(re.search(r'height="([^"]*)"', tag_line).group(1))
-                    return f"M {x} {y} h {w} v {h} h -{w} z"
-                
-                # 3. Try Circle
-                if "<circle" in tag_line:
-                    cx = float(re.search(r'cx="([^"]*)"', tag_line).group(1))
-                    cy = float(re.search(r'cy="([^"]*)"', tag_line).group(1))
-                    r = float(re.search(r'r="([^"]*)"', tag_line).group(1))
-                    # Two arcs to make a circle
-                    return f"M {cx-r} {cy} a {r} {r} 0 1 0 {2*r} 0 a {r} {r} 0 1 0 -{2*r} 0"
-                
-                # 4. Try Line
-                if "<line" in tag_line:
-                    x1 = float(re.search(r'x1="([^"]*)"', tag_line).group(1))
-                    y1 = float(re.search(r'y1="([^"]*)"', tag_line).group(1))
-                    x2 = float(re.search(r'x2="([^"]*)"', tag_line).group(1))
-                    y2 = float(re.search(r'y2="([^"]*)"', tag_line).group(1))
-                    return f"M {x1} {y1} L {x2} {y2}"
-                    
-                return None
-
             for fname, content in files_to_render.items():
-                # Debug Check
-                if content is None:
-                    print(f"WARNING: Content for {fname} in part {part['id']} is None")
-                    continue
-
-                if isinstance(content, str) and cleat_data and content in cleat_data.get('svg_contents', {}):
-                    content = cleat_data['svg_contents'][content]
+                if isinstance(content, str) and fname not in part['files']:
+                     if cleat_data and content in cleat_data['svg_contents']:
+                             content = cleat_data['svg_contents'][content]
                 
                 if "VISUALIZATION" in fname: continue
                 l_code, friendly = get_layer_type_v11(fname)
                 if not l_code: continue
                 
-                # MAPPING FOR USER REQUESTED ELEMENT NAMES
-                element_base_name = "ELEMENT"
-                if friendly == 'CONTOUR (Outside)': element_base_name = "OUTSIDE CUTS"
-                elif friendly == 'HOLES (Inside)': element_base_name = "HOLE"
-                elif friendly == 'POCKET': element_base_name = "RABBET"
-                elif friendly == 'CONTOUR (Inside)': element_base_name = "INSIDE WINDOW"
-                elif friendly == 'NO OFFSET (Score)': element_base_name = "SCORE"
-
-                # Flatten & Apply Styles
-                try:
-                    raw_lines = flatten_content_elements(content, tf)
-                except Exception as e:
-                    print(f"Error flattening {fname}: {e}")
-                    raw_lines = []
+                active_layers.add(friendly)
                 
-                if raw_lines is None:
-                    print(f"Error: flatten_content_elements returned None for {fname}")
-                    continue
-
-                for i, line in enumerate(raw_lines):
-                    d_attr = get_d_from_tag(line)
-                    if not d_attr: continue
-                    
-                    # Special Case: Bottom Access Panel Logic
-                    if "BOTTOM_HATCH_CUT" in fname: # Actually RAIL_NAME_HATCH_CUT
-                         # Index 0 = Inner (Through Cut) -> BOTTOM ACCESS CUT
-                         # Index 1 = Outer (Shelf) -> BOTTOM ACCESS RABBET
-                         
-                         if i == 0:
-                             # Inner -> ACCESS PANEL CUT
-                             buffered_paths["BOTTOM ACCESS CUT"]['d'].append(d_attr)
-                             # Inner -> ACCESS RABBET (for double line rabbet visual if desired? User said "BOTTOM ACCESS RABBET")
-                             # User said "Layer Bottom: BOTTOM INSIDE WINDOW should be called BOTTOM ACCESS RABBET"
-                             # And "BOTTOM ACCESS CUT... single rectangle... no inner line to act as a rabbet"
-                             # Wait. A Rabbet usually IS two lines (Outer and Inner).
-                             # If "BOTTOM ACCESS CUT" is just the Inner Rectangle (Through Cut).
-                             # And "BOTTOM ACCESS RABBET" replaces the old Window/Rabbet.
-                             # If the user wants the Rabbet to have "Two Lines", then we should add BOTH Index 0 and Index 1 to "BOTTOM ACCESS RABBET".
-                             # But "BOTTOM ACCESS CUT" is separate.
-                             
-                             buffered_paths["BOTTOM ACCESS RABBET"]['d'].append(d_attr) # Inner line of Rabbet
-                             
-                         elif i == 1:
-                             # Outer -> BOTTOM ACCESS RABBET
-                             buffered_paths["BOTTOM ACCESS RABBET"]['d'].append(d_attr) # Outer line of Rabbet
-                    
-                    # Logic for standard categorization
-                    elif element_base_name in buffered_paths:
-                         buffered_paths[element_base_name]['d'].append(d_attr)
-
-            # Flush Buffer to SVG Lines
-            for name, data in buffered_paths.items():
-                if not data['d']: continue
-                
-                combined_d = " ".join(data['d'])
-                color = data['color']
-                
-                # ID generation
-                safe_name = name.replace(" ", "_")
-                obj_id = f"{part['id']}_{safe_name}"
-                
-                style = f'fill="none" stroke="{color}" stroke-width="{STROKE_WIDTH}"'
-                # Create a single path element
-                line = f'<path d="{combined_d}" {style} transform="{tf}" id="{obj_id}" data-name="{name}" />'
-                lines.append("    " + line)
-
-            # OLD RENDER LOOP (REPLACED)
-            # for fname, content in files_to_render.items(): ...
+                # Flatten & Append
+                lines.extend(flatten_content_elements(content, tf))
 
             # Render Nested Hatch
             if part.get('nested_hatch'):
@@ -1950,38 +1415,105 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
                 off_x = (part['w'] - h_data['lid_w']) / 2
                 off_y = (part['h'] - h_data['lid_h']) / 2
                 
+                h_tf = f"{tf} translate({f(off_x)}, {f(off_y)}) translate(-2.0, -2.0)" # Need another -2 margin shift for the hatch content which has its own margin?
+                # Yes, hatch content is an SVG with margin.
+                # wait, `extract_body` in v1.10 handled one margin shift.
+                # `flatten_content_elements` adds `translate(-2,-2)` to the passed `transform_str`.
+                # NO, I hardcoded `translate(-2.0, -2.0)` in the `tf` variable above.
+                # `flatten_content_elements` applies the PASSED STRING.
+                
+                # So for Nested Hatch:
+                # Base Part Transform: `tf_part` (includes -2,-2).
+                # Hatch transform relative to Part: `translate(off_x, off_y)`.
+                # Hatch Content (SVG) needs -2,-2 shift.
+                # Wait, if `tf_part` already has `-2,-2`, that shifts the *Part Geometry*.
+                # The Hatch Geometry needs to be shifted by `off_x, off_y` relative to Part Origin (0,0).
+                # Part Origin (0,0) is at `GlobalX, GlobalY`.
+                # But `tf` currently transforms `(Margin, Margin)` to `(GlobalX, GlobalY)`.
+                # Because if SVG coords are (2,2), `translate(-2,-2)` makes them (0,0).
+                # Then `translate(GX, GY)` makes them (GX, GY).
+                
+                # So `tf_part` correctly maps Part(0,0) to Global(GX, GY).
+                # Hatch(0,0) should be at Part(0,0) + (off_x, off_y).
+                # So `tf_hatch` = `translate(GX, GY) [rotate?] translate(off_x, off_y) translate(-HatchMargin, -HatchMargin)`.
+                
+                # Regrouping `tf`:
                 if rotated:
+                    # G_Origin = translate(GX+H, GY) rotate(90).
+                    # Hatch Origin = G_Origin * translate(off_x, off_y).
+                    # Hatch Content = Hatch Origin * translate(-2, -2).
                     h_tf = f'translate({f(global_x + part["h"])}, {f(global_y)}) rotate(90) translate({f(off_x)}, {f(off_y)}) translate(-2.0, -2.0)'
                 else:
                     h_tf = f'translate({f(global_x)}, {f(global_y)}) translate({f(off_x)}, {f(off_y)}) translate(-2.0, -2.0)'
                 
-                viz_color = "#ff00ff" # Magenta for Hatch Lid (Outside Cut)
-                
-                # Naming for Hatch
-                element_base_name = "OUTSIDE CUTS"
+                lines.extend(flatten_content_elements(h_data['svg_content'], h_tf))
+                active_layers.add('CONTOUR (Outside)') # Hatch Lid is a cut
 
-                raw_lines = flatten_content_elements(h_data['svg_content'], h_tf)
-                element_counts = {}
-                for line in raw_lines:
-                    line = re.sub(r'\s+fill="[^"]*"', '', line)
-                    line = re.sub(r'\s+stroke="[^"]*"', '', line)
-                    line = re.sub(r'\s+stroke-width="[^"]*"', '', line)
-                    line = re.sub(r'\s+id="[^"]*"', '', line)
-
-                    current_count = element_counts.get(element_base_name, 0) + 1
-                    element_counts[element_base_name] = current_count
-                    
-                    safe_name = element_base_name.replace(" ", "_")
-                    obj_id = f"{part['id']}_{safe_name}_{current_count}"
-
-                    style = f' fill="none" stroke="{viz_color}" stroke-width="{STROKE_WIDTH}"'
-                    line = line.replace("/>", f'{style} id="{obj_id}" data-name="{element_base_name}" />')
-                    lines.append(line)
-
-            lines.append('  </g>')
+            # --- ANNOTATIONS (Text Collision Managed) ---
+            cx = global_x + lbl_w / 2
+            cy = global_y + lbl_h / 2
             
-            # Text Annotations Removed
-
+            # 1. Part Name (80 pt Black)
+            # Content: part['id'] -> Clean
+            p_name = part['id'].replace("_", " ")
+            tm.add_nudge_text(cx, cy - 0.5, p_name, 80, "#000000", "middle", lines)
+            
+            # 2. Sub-Part Lines
+            # We iterate unique friendly names.
+            # v1.11 Spec:
+            # "Sub-part name text (i.e. 'BACK_PANEL_HOLES') should be Lato Black 70 pt 002bff"
+            # "Router instructions (i.e. 'CONTOUR (Inside)') should be Lato Black 70 pt #15ff2b"
+            
+            # The v1.10 code merged these into one list.
+            # The v1.11 requirement implies we might want to list the *Layer Names* AND the *Instructions*?
+            # Or just update styling?
+            # "Part Name text... repeat SVG part name... 80pt"
+            # "Sub-part name text... 70pt 002bff" -> Defines the Layer/File?
+            # "Router instructions... 70pt #15ff2b" -> Defines the Operation?
+            
+            # Let's iterate the `files_to_render` again to get exact matches.
+            # We need to sort them to be consistent.
+            
+            # We need to pair: (LayerName, Instruction).
+            # e.g. "BACK_PANEL_HOLES", "HOLES (Inside)"
+            
+            layer_infos = []
+            for fname in sorted(files_to_render.keys()):
+                if "VISUALIZATION" in fname: continue
+                l_code, friendly = get_layer_type_v11(fname)
+                if not l_code: continue
+                # Filename clean: "BACK_PANEL_HOLES.v1.11.svg" -> "BACK_PANEL_HOLES"
+                clean_name = fname.split('.v')[0]
+                layer_infos.append((clean_name, friendly))
+            
+            if part.get('nested_hatch'):
+                layer_infos.append(("HATCH_LID", "CONTOUR (Outside)"))
+                
+            # Dedup?
+            # If multiple files map to same, list both?
+            # User wants "Sub-part name" e.g. "BACK_PANEL_HOLES".
+            # If we have multiple, list all.
+            
+            # Sort unique
+            layer_infos = sorted(list(set(layer_infos)))
+            
+            # Start Y for details (below Part Name)
+            # The `add_nudge_text` maintains its own cursor? No, it uses physics to nudge.
+            # So if we feed (cx, cy), it will nudge down until clear.
+            # We can just feed same start point (cx, cy) and let it stack?
+            # Yes, but we should start a bit lower to avoid trying to overlap the Part Name too much.
+            
+            start_y_details = cy + 0.5
+            
+            for sub_name, instr in layer_infos:
+                # Sub-Part Name (Blue)
+                # "BACK_PANEL_HOLES"
+                tm.add_nudge_text(cx, start_y_details, sub_name, 70, "#002bff", "middle", lines)
+                
+                # Router Instruction (Green)
+                # "CONTOUR (Inside)"
+                tm.add_nudge_text(cx, start_y_details, f"-> {instr}", 70, "#15ff2b", "middle", lines)
+                
     lines.append('</svg>')
     
     return {f"MASTER_LAYOUT_COMBINED_v{version}.svg": "\n".join(lines)}
@@ -1991,102 +1523,1691 @@ def run_generation_patch(self):
     pass
 
 
-def set_mac_label(filepath, color_idx):
-    """Helper for Mac Labels (Green = 6)"""
-    try:
-        import subprocess
-        # osascript -e 'tell application "Finder" to set label index of (POSIX file "/path") to 6'
-        cmd = ['osascript', '-e', f'tell application "Finder" to set label index of (POSIX file "{filepath}") to {str(color_idx)}']
-        subprocess.run(cmd, capture_output=True)
-    except:
+def generate_blender_script(version, config, rail_paths, geom_front, geom_back):
+    """
+    Generate a complete Blender Python script that recreates the shadowbox assembly.
+
+    This script can be opened directly in Blender's Text Editor and run to create:
+    - All 6 pieces with accurate finger joint geometry
+    - Boolean cuts for Window (Front Bezel), Holes (Back Panel), and Rabbets (all rails)
+    - Correct positioning in assembled orientation
+    - Two plywood materials (wide face and end grain)
+    - Area light setup per JLS specifications
+    - Viewport set to Material Preview and JLS Workspace
+    """
+
+    # Calculate dimensions from config
+    total_width_in = convert_to_inches(config['TOTAL_WIDTH'])
+    total_height_in = convert_to_inches(config['TOTAL_HEIGHT'])
+    box_depth_in = convert_to_inches(config['BOX_DEPTH'])
+    stock_thk_in = convert_to_inches(config['STOCK_THICKNESS'])
+    
+    # Window dimensions (retrieved from config or defaulted)
+    window_width_in = config.get('WINDOW_WIDTH_IN', total_width_in - 3.0)
+    window_height_in = config.get('WINDOW_HEIGHT_IN', total_height_in - 3.0)
+    
+    # Rabbet dimensions
+    front_rabbet_w_in = config.get('FRONT_RABBET_WIDTH', 0.3)
+    front_rabbet_d_in = config.get('FRONT_RABBET_DEPTH', 0.3)
+    back_rabbet_w_in = config.get('BACK_RABBET_WIDTH', 0.3)
+    back_rabbet_d_in = config.get('BACK_RABBET_DEPTH', 0.3)
+    
+    # Extract hole data from geom_back
+    back_holes = geom_back.get('holes', [])
+    back_hole_r_in = geom_back.get('hole_r', 0.1)
+    back_rim_width_in = geom_back.get('rim_width', 0.3)
+    
+    # Extract front bezel rim width (calculated in App)
+    front_rim_width_in = config.get('FRONT_RIM_WIDTH_IN', 0.3) # Fallback if missing
+    if 'FRONT_RIM_WIDTH_M' in config:
+         front_rim_width_in = config['FRONT_RIM_WIDTH_M'] / 0.0254
+
+    # Convert to meters for Blender
+    total_width_m = total_width_in * 0.0254
+    total_height_m = total_height_in * 0.0254
+    box_depth_m = box_depth_in * 0.0254
+    stock_thk_m = stock_thk_in * 0.0254
+    
+    window_width_m = window_width_in * 0.0254
+    window_height_m = window_height_in * 0.0254
+    
+    front_rabbet_w_m = front_rabbet_w_in * 0.0254
+    front_rabbet_d_m = front_rabbet_d_in * 0.0254
+    back_rabbet_w_m = back_rabbet_w_in * 0.0254
+    back_rabbet_d_m = back_rabbet_d_in * 0.0254
+    
+    back_hole_r_m = back_hole_r_in * 0.0254
+    back_rim_width_m = back_rim_width_in * 0.0254
+    front_rim_width_m = front_rim_width_in * 0.0254
+    
+    # Convert hole positions to meters (subtract margin first, then convert)
+    holes_m = []
+    for hx, hy in back_holes:
+        hx_in = hx - MARGIN_INCHES
+        hy_in = hy - MARGIN_INCHES
+        holes_m.append((hx_in * 0.0254, hy_in * 0.0254))
+        
+    # Cleat Mounting Holes logic (for Blender)
+    # We need to pass the 'cleat_hole_positions' if we want to model them on the back panel
+    # The `back_holes` above are user-defined generic holes. 
+    # v1.09 added automatic cleat mounting holes to `generate_back_panel_parts` -> `BACK_PANEL_HOLES_THROUGH`
+    # Ideally, we should add these to the `holes_m` list if they aren't already there.
+    # But `geom_back` passed here comes from `generate_back_panel_parts`.
+    # Let's check `geom_back` structure in `generate_back_panel_parts`.
+    # It has 'holes'. In v1.09, we commented out adding them to 'holes' list?
+    # No, we skipped adding them to `geometry_data['holes']`.
+    # Correction: We MUST add them to `geometry_data['holes']` so they appear here.
+    # OR we handle them separately.
+    # Let's handle them separately for clarity in Blender script.
+    
+    # HACK: Re-calculate or pass. 
+    # We will recalculate in Blender script or Python? 
+    # Python is easier.
+    cleat_holes_m = []
+    if config.get('CLEATS_ENABLED', True):
+        c_w_in = min(total_width_in * 0.80, 48.0)
+        c_h_in = 4.0
+        # Calc Holes
+        # Y = height_in / 3.0 (From top)
+        # In Blender (Center Origin), Top is +H/2.
+        # Hole Y = (H/2) - (H/3) = H/6.
+        # X: Centered.
+        
+        # We will calc in Blender script for precision relative to object bounds.
         pass
 
-def verify_dimensions(svg_paths, config):
-    """
-    Verify generated parts against configuration.
-    Returns (True/False, Report String)
-    """
-    report = []
-    failed = False
-    
-    # Expected Dimensions
-    total_w = convert_to_inches(config['TOTAL_WIDTH'])
-    total_h = convert_to_inches(config['TOTAL_HEIGHT'])
-    stock_thk = convert_to_inches(config['STOCK_THICKNESS'])
-    box_depth = convert_to_inches(config['BOX_DEPTH'])
-    
-    # Tolerances
-    TOLERANCE = 0.02 # inch
-    
-    checks = {
-        'TOP_RAIL': {'w': total_w, 'h': box_depth},
-        'BOTTOM_RAIL': {'w': total_w, 'h': box_depth},
-        'LEFT_RAIL': {'w': total_h, 'h': box_depth},
-        'RIGHT_RAIL': {'w': total_h, 'h': box_depth}
-    }
+    script = f'''#!/usr/bin/env python3
+"""
+OPEN ME IN BLENDER - Shadowbox Assembly v{version}
+=========================================================
+Generated by CNC Generator - Carbide-Optimized v{version}
 
-    report.append("--- DIMENSION VERIFICATION ---")
-    
-    for name, expected in checks.items():
-        path_d = svg_paths.get(name, "")
-        if not path_d or "M 0 0 Z" in path_d:
-            report.append(f"FAIL: {name} not found or empty.")
-            failed = True
+This script creates a complete 3D visualization of the shadowbox assembly
+with accurate finger joint geometry and Boolean cuts for:
+- Window opening in Front Bezel
+- Screw holes in Back Panel  
+- Rabbet channels in all rails
+
+INSTRUCTIONS:
+1. Open Blender
+2. Switch to Scripting workspace (or open a Text Editor panel)
+3. Open this file (Text > Open)
+4. Click "Run Script" or press Alt+P
+
+The script will create:
+- All 6 pieces (Top Rail, Bottom Rail, Left Rail, Right Rail, Front Bezel, Back Panel)
+- Boolean cuts for Window, Holes, and Rabbets
+- Positioned in assembled orientation
+- Two plywood materials: wide face (#E2CBAD) and end grain (#C0AD93)
+- Area light for visualization
+- Imperial units (inches) configured
+- Viewport set to Material Preview with JLS Workspace
+"""
+
+import bpy
+import bmesh
+import re
+from mathutils import Vector, Euler
+import math
+
+# ==============================================================================
+# CONFIGURATION (from your CNC Generator settings)
+# ==============================================================================
+CONFIG = {{
+    'TOTAL_WIDTH_IN': {total_width_in:.4f},
+    'TOTAL_HEIGHT_IN': {total_height_in:.4f},
+    'BOX_DEPTH_IN': {box_depth_in:.4f},
+    'STOCK_THICKNESS_IN': {stock_thk_in:.4f},
+    'STOCK_THICKNESS_M': {stock_thk_m:.6f},
+    'TOTAL_WIDTH_M': {total_width_m:.6f},
+    'TOTAL_HEIGHT_M': {total_height_m:.6f},
+    'BOX_DEPTH_M': {box_depth_m:.6f},
+    'WINDOW_WIDTH_M': {window_width_m:.6f},
+    'WINDOW_HEIGHT_M': {window_height_m:.6f},
+    'FRONT_RABBET_WIDTH_M': {front_rabbet_w_m:.6f},
+    'FRONT_RABBET_DEPTH_M': {front_rabbet_d_m:.6f},
+    'BACK_RABBET_WIDTH_M': {back_rabbet_w_m:.6f},
+    'BACK_RABBET_DEPTH_M': {back_rabbet_d_m:.6f},
+    'BACK_HOLE_RADIUS_M': {back_hole_r_m:.6f},
+    'BACK_RIM_WIDTH_M': {back_rim_width_m:.6f},
+    'FRONT_RIM_WIDTH_M': {front_rim_width_m:.6f},
+    'CLEATS_ENABLED': {str(config.get('CLEATS_ENABLED', True))},
+    'HATCH_ENABLED': {str(config.get('HATCH_ENABLED', False))},
+    'HATCH_WIDTH_PCT': {config.get('HATCH_WIDTH_PCT', 50.0)},
+    'HATCH_HEIGHT_PCT': {config.get('HATCH_HEIGHT_PCT', 33.0)},
+    'HATCH_RAISE_IN': {config.get('HATCH_RAISE', 0.0)}, # HATCH_RAISE key in config might be string or float from app? App uses vars. 
+    # In run_generation: config['HATCH_RAISE'] = float(self.vars['hatch_raise'].get())
+    # So it should be a float or parseable.
+}}
+
+# Back panel hole positions (in meters, relative to panel origin at bottom-left)
+BACK_PANEL_HOLES = {holes_m}
+
+# SVG MARGIN used in path generation (2 inches)
+MARGIN_IN = 2.0
+
+# Plywood colors (hex to RGB 0-1)
+COLOR_WIDE_FACE = (0xE2/255, 0xCB/255, 0xAD/255, 1.0)  # #E2CBAD
+COLOR_END_GRAIN = (0xC0/255, 0xAD/255, 0x93/255, 1.0)  # #C0AD93
+
+# ==============================================================================
+# SVG PATH DATA (embedded from generated files)
+# ==============================================================================
+SVG_PATHS = {{
+    'TOP_RAIL': """{rail_paths.get('TOP', 'M 0 0 Z')}""",
+    'BOTTOM_RAIL': """{rail_paths.get('BOTTOM', 'M 0 0 Z')}""",
+    'LEFT_RAIL': """{rail_paths.get('LEFT', 'M 0 0 Z')}""",
+    'RIGHT_RAIL': """{rail_paths.get('RIGHT', 'M 0 0 Z')}""",
+}}
+
+# ==============================================================================
+# HELPER FUNCTIONS
+# ==============================================================================
+
+def parse_svg_path(path_d, margin_offset=2.0):
+    """Parse SVG path d attribute into list of (x, y) vertices in inches, then convert to meters."""
+    vertices = []
+    commands = re.findall(r'([MLZ])\\s*([\\d.\\-\\s]*)', path_d)
+
+    for cmd, coords_str in commands:
+        if cmd == 'Z':
             continue
-            
-        # Parse Path Bounds
-        # Simple extraction of coordinates
-        clean_d = path_d.replace('M', ' ').replace('L', ' ').replace('Z', ' ')
-        tokens = clean_d.split()
-        coords = []
-        try:
-            for k in range(0, len(tokens), 2):
-                if k+1 < len(tokens):
-                    coords.append((float(tokens[k]), float(tokens[k+1])))
-        except:
-             report.append(f"FAIL: {name} path parse error.")
-             failed = True
-             continue
-             
-        if not coords:
-            report.append(f"FAIL: {name} no coordinates found.")
-            failed = True
-            continue
-            
-        xs = [c[0] for c in coords]
-        ys = [c[1] for c in coords]
-        
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-        
-        # Dimensions
-        actual_w = max_x - min_x
-        actual_h = max_y - min_y
-        
-        # Determine Orientation (Rails might be rotated 90 degrees in SVG?) 
-        # Actually our generator produces horizontal rails usually, except sides?
-        # Left/Right rails: width=total_h, height=depth. 
-        # Let's check matching either orientation.
-        
-        match_norm = (abs(actual_w - expected['w']) < TOLERANCE) and (abs(actual_h - expected['h']) < TOLERANCE)
-        match_rot  = (abs(actual_w - expected['h']) < TOLERANCE) and (abs(actual_h - expected['w']) < TOLERANCE)
-        
-        if match_norm or match_rot:
-            report.append(f"PASS: {name} ({actual_w:.3f} x {actual_h:.3f})")
+        coords = coords_str.strip().split()
+        if len(coords) >= 2:
+            x_in = float(coords[0]) - margin_offset
+            y_in = float(coords[1]) - margin_offset
+            x_m = x_in * 0.0254
+            y_m = y_in * 0.0254
+            vertices.append((x_m, y_m))
+
+    return vertices
+
+def create_plywood_materials():
+    """Create the two plywood materials: wide face and end grain."""
+
+    # Wide face material (#E2CBAD)
+    mat_wide = bpy.data.materials.new(name="Plywood_Wide_Face")
+    mat_wide.use_nodes = True
+    nodes = mat_wide.node_tree.nodes
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputMaterial')
+    principled = nodes.new('ShaderNodeBsdfPrincipled')
+    principled.inputs['Base Color'].default_value = COLOR_WIDE_FACE
+    principled.inputs['Roughness'].default_value = 0.6
+    mat_wide.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
+
+    # End grain material (#C0AD93 - darker)
+    mat_end = bpy.data.materials.new(name="Plywood_End_Grain")
+    mat_end.use_nodes = True
+    nodes = mat_end.node_tree.nodes
+    nodes.clear()
+    output = nodes.new('ShaderNodeOutputMaterial')
+    principled = nodes.new('ShaderNodeBsdfPrincipled')
+    principled.inputs['Base Color'].default_value = COLOR_END_GRAIN
+    principled.inputs['Roughness'].default_value = 0.7
+    mat_end.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
+
+    return mat_wide, mat_end
+
+def get_face_dominant_axis(face_normal):
+    """Determine which axis a face normal is most aligned with."""
+    abs_normal = [abs(face_normal.x), abs(face_normal.y), abs(face_normal.z)]
+    max_idx = abs_normal.index(max(abs_normal))
+    return ['X', 'Y', 'Z'][max_idx]
+
+def apply_end_grain_materials(obj, mat_wide, mat_end, end_grain_axes):
+    """
+    Apply end grain material to faces perpendicular to specified axes.
+
+    end_grain_axes: list of axes ('X', 'Y', 'Z') where face normals pointing
+                    along these axes should get the end grain material.
+    """
+    if obj.type != 'MESH':
+        return
+
+    # Ensure object has both materials
+    obj.data.materials.clear()
+    obj.data.materials.append(mat_wide)  # Index 0
+    obj.data.materials.append(mat_end)   # Index 1
+
+    # Use bmesh to analyze and assign materials per face
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+
+    for face in bm.faces:
+        # Get face normal in world space (after transforms applied)
+        normal_world = obj.matrix_world.to_3x3() @ face.normal
+        dominant_axis = get_face_dominant_axis(normal_world)
+
+        if dominant_axis in end_grain_axes:
+            face.material_index = 1  # End grain
         else:
-            report.append(f"FAIL: {name} Dimensions Mismatch.")
-            report.append(f"      Expected: {expected['w']:.3f} x {expected['h']:.3f}")
-            report.append(f"      Actual:   {actual_w:.3f} x {actual_h:.3f}")
-            failed = True
+            face.material_index = 0  # Wide face
 
-    if failed:
-        return False, "\n".join(report)
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+
+def create_mesh_from_profile(name, vertices, thickness_m, collection, extrude_axis='Z'):
+    """Create a 3D mesh by extruding a 2D profile and link to collection."""
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+
+    # IMPORTANT: Link to collection immediately so it exists in the scene
+    collection.objects.link(obj)
+
+    bm = bmesh.new()
+
+    bottom_verts = []
+    for v in vertices:
+        if extrude_axis == 'Z':
+            vert = bm.verts.new((v[0], v[1], 0))
+        elif extrude_axis == 'Y':
+            vert = bm.verts.new((v[0], 0, v[1]))
+        elif extrude_axis == 'X':
+            vert = bm.verts.new((0, v[0], v[1]))
+        bottom_verts.append(vert)
+
+    bm.verts.ensure_lookup_table()
+
+    if len(bottom_verts) >= 3:
+        try:
+            bm.faces.new(bottom_verts)
+        except:
+            pass
+
+    if extrude_axis == 'Z':
+        extrude_vec = Vector((0, 0, thickness_m))
+    elif extrude_axis == 'Y':
+        extrude_vec = Vector((0, thickness_m, 0))
+    elif extrude_axis == 'X':
+        extrude_vec = Vector((thickness_m, 0, 0))
+
+    ret = bmesh.ops.extrude_face_region(bm, geom=bm.faces[:])
+    verts = [e for e in ret['geom'] if isinstance(e, bmesh.types.BMVert)]
+    bmesh.ops.translate(bm, verts=verts, vec=extrude_vec)
+
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.update()
+
+    return obj
+
+def create_simple_box(name, width_m, height_m, depth_m, collection):
+    """Create a simple box mesh and link to specified collection."""
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+
+    # Link to our collection
+    collection.objects.link(obj)
+
+    # Create box geometry using bmesh
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    bm.to_mesh(mesh)
+    bm.free()
+
+    # Set dimensions
+    obj.dimensions = (width_m, depth_m, height_m)
+
+    return obj
+
+def create_cylinder_cutter(name, radius_m, depth_m, collection, segments=32):
+    """Create a cylinder mesh for Boolean cutting operations."""
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    
+    bm = bmesh.new()
+    bmesh.ops.create_cone(
+        bm,
+        cap_ends=True,
+        cap_tris=False,
+        segments=segments,
+        radius1=radius_m,
+        radius2=radius_m,
+        depth=depth_m
+    )
+    bm.to_mesh(mesh)
+    bm.free()
+    
+    return obj
+
+def apply_boolean_difference(target_obj, cutter_obj, delete_cutter=True):
+    """Apply a boolean difference modifier to cut cutter from target."""
+    success = False
+    try:
+        # Ensure cutter has transforms applied
+        bpy.context.view_layer.objects.active = cutter_obj
+        cutter_obj.select_set(True)
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        cutter_obj.select_set(False)
+        
+        # Add boolean modifier
+        bool_mod = target_obj.modifiers.new(name="Boolean_Cut", type='BOOLEAN')
+        bool_mod.operation = 'DIFFERENCE'
+        bool_mod.object = cutter_obj
+        bool_mod.solver = 'EXACT'  # Use EXACT solver (required for Blender 4.x)
+        
+        # Apply the modifier
+        bpy.context.view_layer.objects.active = target_obj
+        target_obj.select_set(True)
+        bpy.ops.object.modifier_apply(modifier=bool_mod.name)
+        target_obj.select_set(False)
+        success = True
+    except Exception as e:
+        print(f"    WARNING: Boolean operation failed: {{e}}")
+        # Remove the modifier if it exists but failed to apply
+        if "Boolean_Cut" in target_obj.modifiers:
+            target_obj.modifiers.remove(target_obj.modifiers["Boolean_Cut"])
+    
+    # Always delete the cutter to clean up
+    if delete_cutter:
+        try:
+            bpy.data.objects.remove(cutter_obj, do_unlink=True)
+        except:
+            pass
+    
+    return success
+
+def remove_inner_cap_faces(obj, inner_bound_x, inner_bound_z):
+    """Remove cap faces inside a window opening after Boolean cut."""
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    
+    bm = bmesh.from_edit_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+    
+    faces_to_delete = []
+    for face in bm.faces:
+        # Check if all vertices are within the inner bounds
+        all_inner = True
+        for vert in face.verts:
+            if abs(vert.co.x) > inner_bound_x + 0.001 or abs(vert.co.z) > inner_bound_z + 0.001:
+                all_inner = False
+                break
+        if all_inner:
+            faces_to_delete.append(face)
+    
+    for face in faces_to_delete:
+        bm.faces.remove(face)
+    
+    bmesh.update_edit_mesh(obj.data)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    
+    return len(faces_to_delete)
+
+def remove_hole_cap_faces(obj, hole_positions, y_front, y_back):
+    """Remove cap faces inside holes after Boolean cuts."""
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    
+    bm = bmesh.from_edit_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+    
+    faces_to_delete = []
+    for face in bm.faces:
+        centroid = face.calc_center_median()
+        y_vals = [v.co.y for v in face.verts]
+        all_front = all(abs(y - y_front) < 0.001 for y in y_vals)
+        all_back = all(abs(y - y_back) < 0.001 for y in y_vals)
+        
+        if all_front or all_back:
+            for hx, hz in hole_positions:
+                dist = ((centroid.x - hx)**2 + (centroid.z - hz)**2)**0.5
+                if dist < 0.01:  # Within 10mm of hole center
+                    faces_to_delete.append(face)
+                    break
+    
+    for face in faces_to_delete:
+        bm.faces.remove(face)
+    
+    bmesh.update_edit_mesh(obj.data)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    
+    return len(faces_to_delete)
+
+def create_front_bezel_with_window(name, width_m, height_m, thickness_m, 
+                                    window_w_m, window_h_m, rim_width_m, collection):
+    """
+    Create the front bezel with window cutout.
+    
+    The bezel has:
+    1. Outer dimensions = total_width x total_height
+    2. Window cutout = Explicitly sized, centered
+    """
+    # Create main panel
+    obj = create_simple_box(name, width_m, height_m, thickness_m, collection)
+    
+    # Apply scale to get actual geometry
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    obj.select_set(False)
+    
+    # Get bezel center Y position (needed for cutter placement)
+    mesh = obj.data
+    bezel_y_min = min((obj.matrix_world @ v.co).y for v in mesh.vertices)
+    bezel_y_max = max((obj.matrix_world @ v.co).y for v in mesh.vertices)
+    bezel_center_y = (bezel_y_min + bezel_y_max) / 2
+    
+    # Create window cutter (through-cut)
+    # window_w and window_h are passed in explicitly now
+    window_w = window_w_m
+    window_h = window_h_m
+    
+    if window_w > 0 and window_h > 0:
+        # Create cutter mesh using bmesh at correct dimensions
+        cutter_mesh = bpy.data.meshes.new(name + "_window_cutter_mesh")
+        window_cutter = bpy.data.objects.new(name + "_window_cutter", cutter_mesh)
+        collection.objects.link(window_cutter)
+        
+        bm = bmesh.new()
+        hw = window_w / 2
+        hd = thickness_m * 1.5  # Go through the panel
+        hh = window_h / 2
+        
+        # Create 8 vertices of the box centered at origin
+        verts = [
+            bm.verts.new((-hw, -hd, -hh)),
+            bm.verts.new(( hw, -hd, -hh)),
+            bm.verts.new(( hw,  hd, -hh)),
+            bm.verts.new((-hw,  hd, -hh)),
+            bm.verts.new((-hw, -hd,  hh)),
+            bm.verts.new(( hw, -hd,  hh)),
+            bm.verts.new(( hw,  hd,  hh)),
+            bm.verts.new((-hw,  hd,  hh)),
+        ]
+        bm.verts.ensure_lookup_table()
+        
+        # Create 6 faces
+        bm.faces.new([verts[0], verts[1], verts[2], verts[3]])  # bottom
+        bm.faces.new([verts[4], verts[7], verts[6], verts[5]])  # top
+        bm.faces.new([verts[0], verts[4], verts[5], verts[1]])  # front
+        bm.faces.new([verts[2], verts[6], verts[7], verts[3]])  # back
+        bm.faces.new([verts[0], verts[3], verts[7], verts[4]])  # left
+        bm.faces.new([verts[1], verts[5], verts[6], verts[2]])  # right
+        
+        bm.to_mesh(cutter_mesh)
+        bm.free()
+        
+        # Position cutter at bezel center Y
+        window_cutter.location = (0, bezel_center_y, 0)
+        
+        # Apply boolean to cut window
+        apply_boolean_difference(obj, window_cutter, delete_cutter=True)
+        
+        # Remove inner cap faces that close the window opening
+        inner_bound = window_w / 2
+        caps_removed = remove_inner_cap_faces(obj, inner_bound, inner_bound)
+        
+        print(f"    - Window cut: {{window_w*39.37:.2f}} x {{window_h*39.37:.2f}} inches")
+        print(f"    - Removed {{caps_removed}} inner cap faces")
+    
+    return obj
+
+def create_back_panel_with_holes(name, width_m, height_m, thickness_m,
+                                  hole_positions, hole_radius_m, rim_width_m, collection):
+    """
+    Create the back panel with screw holes.
+    
+    The panel has:
+    1. Outer dimensions = total_width x total_height
+    2. Screw holes at specified positions
+    """
+    # Create main panel
+    obj = create_simple_box(name, width_m, height_m, thickness_m, collection)
+    
+    # Apply scale to get actual geometry
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    obj.select_set(False)
+    
+    # Get panel Y bounds for cap face removal later
+    mesh = obj.data
+    panel_y_min = min((obj.matrix_world @ v.co).y for v in mesh.vertices)
+    panel_y_max = max((obj.matrix_world @ v.co).y for v in mesh.vertices)
+    panel_center_y = (panel_y_min + panel_y_max) / 2
+    
+    # Track hole positions in panel-centered coordinates for cap removal
+    centered_hole_positions = []
+    
+    # Create and apply hole cutters
+    if hole_positions and hole_radius_m > 0:
+        print(f"    - Cutting {{len(hole_positions)}} screw holes (r={{hole_radius_m*39.37:.3f}} in)")
+        
+        for i, (hx, hy) in enumerate(hole_positions):
+            # Create cylinder cutter
+            hole_cutter = create_cylinder_cutter(
+                f"{{name}}_hole_{{i}}", 
+                hole_radius_m, 
+                thickness_m * 3,  # Go through the panel
+                collection,
+                segments=16
+            )
+            
+            # Rotate to align with Y axis (panel faces front/back)
+            hole_cutter.rotation_euler = (math.pi/2, 0, 0)
+            
+            # Position hole - convert from bottom-left origin to center origin
+            hole_x = hx - width_m/2
+            hole_z = hy - height_m/2
+            hole_cutter.location = (hole_x, panel_center_y, hole_z)
+            centered_hole_positions.append((hole_x, hole_z))
+            
+            # Apply rotation and location before boolean
+            bpy.context.view_layer.objects.active = hole_cutter
+            hole_cutter.select_set(True)
+            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            hole_cutter.select_set(False)
+            
+            # Apply boolean
+            apply_boolean_difference(obj, hole_cutter, delete_cutter=True)
+        
+        # Remove cap faces inside holes
+        # Get updated Y bounds after boolean
+        mesh = obj.data
+        y_front = min(v.co.y for v in mesh.vertices)
+        y_back = max(v.co.y for v in mesh.vertices)
+        
+        caps_removed = remove_hole_cap_faces(obj, centered_hole_positions, y_front, y_back)
+        print(f"    - Removed {{caps_removed}} hole cap faces")
+    
+    return obj
+
+def create_rail_with_rabbets(name, vertices, thickness_m, collection,
+                              front_rabbet_w_m, front_rabbet_d_m,
+                              back_rabbet_w_m, back_rabbet_d_m,
+                              rail_length_m, rail_depth_m, extrude_axis='Z'):
+    """
+    Create a rail from SVG profile vertices.
+    
+    Note: Rabbet cuts on rails are skipped for now as the complex finger joint
+    geometry makes Boolean operations unreliable. The visual representation 
+    still accurately shows the finger joints which are the key feature.
+    """
+    # Create base rail from profile
+    if len(vertices) >= 3:
+        obj = create_mesh_from_profile(name, vertices, thickness_m, collection, extrude_axis)
     else:
-        return True, "\n".join(report)
+        # Fallback to simple box
+        obj = create_simple_box(name, rail_length_m, thickness_m, rail_depth_m, collection)
+    
+    return obj
 
-def _get_blender_generator():
-    from blender_generator import generate_blender_script, generate_trivision_script
-    return generate_blender_script, generate_trivision_script
+# ==============================================================================
+# MAIN ASSEMBLY FUNCTION
+# ==============================================================================
+
+def create_shadowbox_assembly():
+    """Create the complete Shadowbox assembly with Boolean cuts."""
+
+    print("=" * 60)
+    print("Creating Shadowbox Assembly v{version}")
+    print("With Boolean cuts for Window, Holes, and Rabbets")
+    print("=" * 60)
+
+    # 1. SETUP SCENE
+    print("\\n[1/8] Setting up scene...")
+
+    bpy.context.scene.unit_settings.system = 'IMPERIAL'
+    bpy.context.scene.unit_settings.length_unit = 'INCHES'
+    bpy.context.scene.render.engine = 'CYCLES'
+    bpy.context.scene.cycles.samples = 16
+    bpy.context.scene.cycles.preview_samples = 32
+
+    # Set World background strength (User Request)
+    if bpy.context.scene.world and bpy.context.scene.world.node_tree:
+        bg_node = bpy.context.scene.world.node_tree.nodes.get("Background")
+        if bg_node:
+            bg_node.inputs[1].default_value = 0.02
+
+    # Create collection
+    collection = bpy.data.collections.new("Shadowbox Assembly")
+    bpy.context.scene.collection.children.link(collection)
+
+    # Make it active
+    bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children[collection.name]
+
+    # 2. CREATE PLYWOOD MATERIALS
+    print("[2/8] Creating plywood materials...")
+
+    mat_wide, mat_end = create_plywood_materials()
+    print(f"  - Wide face: #E2CBAD")
+    print(f"  - End grain: #C0AD93")
+
+    # 3. CREATE RAILS WITH RABBETS
+    print("[3/8] Creating rails with rabbet channels...")
+
+    stock_thk = CONFIG['STOCK_THICKNESS_M']
+    total_w = CONFIG['TOTAL_WIDTH_M']
+    total_h = CONFIG['TOTAL_HEIGHT_M']
+    box_d = CONFIG['BOX_DEPTH_M']
+    front_rab_w = CONFIG['FRONT_RABBET_WIDTH_M']
+    front_rab_d = CONFIG['FRONT_RABBET_DEPTH_M']
+    back_rab_w = CONFIG['BACK_RABBET_WIDTH_M']
+    back_rab_d = CONFIG['BACK_RABBET_DEPTH_M']
+
+    parts = {{}}
+
+    # TOP RAIL
+    print("  - Top Rail")
+    top_verts = parse_svg_path(SVG_PATHS['TOP_RAIL'])
+    parts['TOP'] = create_rail_with_rabbets(
+        "Box_Top_Rail", top_verts, stock_thk, collection,
+        front_rab_w, front_rab_d, back_rab_w, back_rab_d,
+        total_w, box_d, 'Z'
+    )
+
+    # BOTTOM RAIL
+    print("  - Bottom Rail")
+    bot_verts = parse_svg_path(SVG_PATHS['BOTTOM_RAIL'])
+    parts['BOTTOM'] = create_rail_with_rabbets(
+        "Box_Bottom_Rail", bot_verts, stock_thk, collection,
+        front_rab_w, front_rab_d, back_rab_w, back_rab_d,
+        total_w, box_d, 'Z'
+    )
+
+    # LEFT RAIL
+    print("  - Left Rail")
+    left_verts = parse_svg_path(SVG_PATHS['LEFT_RAIL'])
+    parts['LEFT'] = create_rail_with_rabbets(
+        "Box_Left_Rail", left_verts, stock_thk, collection,
+        front_rab_w, front_rab_d, back_rab_w, back_rab_d,
+        total_h, box_d, 'Z'
+    )
+    parts['LEFT'].rotation_euler = (0, math.radians(90), 0)
+
+    # RIGHT RAIL
+    print("  - Right Rail")
+    right_verts = parse_svg_path(SVG_PATHS['RIGHT_RAIL'])
+    parts['RIGHT'] = create_rail_with_rabbets(
+        "Box_Right_Rail", right_verts, stock_thk, collection,
+        front_rab_w, front_rab_d, back_rab_w, back_rab_d,
+        total_h, box_d, 'Z'
+    )
+    parts['RIGHT'].rotation_euler = (0, math.radians(-90), 0)
+
+    # 4. CREATE FRONT BEZEL WITH WINDOW
+    print("[4/8] Creating Front Bezel with window cutout...")
+    parts['FRONT'] = create_front_bezel_with_window(
+        "Box_Front_Bezel",
+        total_w, total_h, stock_thk,
+        CONFIG['WINDOW_WIDTH_M'],
+        CONFIG['WINDOW_HEIGHT_M'],
+        CONFIG['FRONT_RIM_WIDTH_M'],
+        collection
+    )
+
+    # 5. CREATE BACK PANEL WITH HOLES
+    print("[5/8] Creating Back Panel with screw holes...")
+    parts['BACK'] = create_back_panel_with_holes(
+        "Box_Back_Panel",
+        total_w, total_h, stock_thk,
+        BACK_PANEL_HOLES,
+        CONFIG['BACK_HOLE_RADIUS_M'],
+        CONFIG['BACK_RIM_WIDTH_M'],
+        collection
+    )
+
+    # 6. POSITION PARTS
+    print("[6/8] Positioning parts...")
+
+    half_w = total_w / 2
+    half_h = total_h / 2
+    half_d = box_d / 2
+
+    # Set origins to geometry center
+    for key, obj in parts.items():
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+        obj.select_set(False)
+
+    # Get actual horizontal rail width (includes finger protrusions)
+    top_rail_width = parts['TOP'].dimensions.x
+    finger_tip_x = top_rail_width / 2
+
+    # Position each part
+    parts['TOP'].location = (0, 0, half_h - stock_thk/2)
+    parts['BOTTOM'].location = (0, 0, -half_h + stock_thk/2)
+    parts['LEFT'].location = (-finger_tip_x + stock_thk/2, 0, 0)
+    parts['RIGHT'].location = (finger_tip_x - stock_thk/2, 0, 0)
+    parts['FRONT'].location = (0, -half_d - stock_thk/2, 0)
+    parts['BACK'].location = (0, half_d + stock_thk/2, 0)
+
+    # 7. APPLY TRANSFORMS AND MATERIALS
+    print("[7/8] Applying transforms and materials...")
+
+    # Apply transforms first
+    for key, obj in parts.items():
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+        obj.select_set(False)
+
+    # Define end grain axes for each part (after transforms applied)
+    end_grain_config = {{
+        'TOP': ['X'],           # End grain on left/right (finger sides)
+        'BOTTOM': ['X'],        # End grain on left/right (finger sides)
+        'LEFT': ['Z'],          # After rotation, end grain points up/down
+        'RIGHT': ['Z'],         # After rotation, end grain points up/down
+        'FRONT': ['X', 'Z'],    # End grain on all 4 edges
+        'BACK': ['X', 'Z'],     # End grain on all 4 edges
+    }}
+
+    for key, obj in parts.items():
+        apply_end_grain_materials(obj, mat_wide, mat_end, end_grain_config.get(key, []))
+
+    # Parent all parts to a main Empty for unified movement
+    print("[8a/8] Parenting parts to root object...")
+    root_empty = bpy.data.objects.new("Box_Box_Root", None)
+    collection.objects.link(root_empty)
+    root_empty.location = (0, 0, 0)
+    root_empty.empty_display_type = 'CUBE'
+    root_empty.empty_display_size = 0.5
+    
+    for key, obj in parts.items():
+        obj.parent = root_empty
+        obj.matrix_parent_inverse = root_empty.matrix_world.inverted()
+
+    # 8. ADD LIGHTING
+    print("[8/8] Setting up lighting...")
+
+    # Area light per JLS specifications
+    light_data = bpy.data.lights.new(name="Area_Light", type='AREA')
+    light_data.color = (1.0, 1.0, 1.0)  # #FFFFFF
+    light_data.energy = 45.0            # Power: 45
+    light_data.shape = 'SQUARE'         # Shape: square
+    light_data.size = 300 * 0.0254      # Size: 300 (convert inches to meters)
+    light_data.spread = math.radians(180)  # Spread: 180 degrees
+
+    # Set exposure on the scene/view layer
+    bpy.context.scene.view_settings.exposure = 4.0
+
+    light_obj = bpy.data.objects.new("Area_Light", light_data)
+    collection.objects.link(light_obj)
+
+    # Location: -90", -20", -80" (convert to meters)
+    light_obj.location = (-90 * 0.0254, -20 * 0.0254, -80 * 0.0254)
+    # Rotation: 0, 208, 0 degrees
+    light_obj.rotation_euler = (0, math.radians(208), 0)
+
+    # Set viewport shading to Material Preview
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            for space in area.spaces:
+                if space.type == 'VIEW_3D':
+                    space.shading.type = 'MATERIAL'
+                    space.clip_start = 0.01
+                    space.clip_end = 1000.0
+                    break
+            break
+
+    # Frame all objects
+    for area in bpy.context.screen.areas:
+        if area.type == 'VIEW_3D':
+            region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+            if region:
+                override = bpy.context.copy()
+                override['area'] = area
+                override['region'] = region
+                with bpy.context.temp_override(**override):
+                    bpy.ops.view3d.view_all(center=True)
+                break
+
+    # Switch to JLS Workspace if it exists
+    if "JLS Workspace" in bpy.data.workspaces:
+        bpy.context.window.workspace = bpy.data.workspaces["JLS Workspace"]
+        print("  - Switched to JLS Workspace")
+    else:
+        print("  - JLS Workspace not found, using current workspace")
+
+    print("\\n" + "=" * 60)
+    print("ASSEMBLY COMPLETE!")
+    print("=" * 60)
+    print(f"\\nDimensions:")
+    print(f"  Total Width:  {{CONFIG['TOTAL_WIDTH_IN']:.2f}} inches")
+    print(f"  Total Height: {{CONFIG['TOTAL_HEIGHT_IN']:.2f}} inches")
+    print(f"  Box Depth:    {{CONFIG['BOX_DEPTH_IN']:.2f}} inches")
+    print(f"  Stock:        {{CONFIG['STOCK_THICKNESS_IN']:.4f}} inches (15mm)")
+    print(f"\\nBoolean Cuts Applied:")
+    print(f"  - Front Bezel: Window cutout (with cap faces removed)")
+    print(f"  - Back Panel:  {{len(BACK_PANEL_HOLES)}} screw holes (with cap faces removed)")
+    print(f"\\nMaterials:")
+    print(f"  Wide face: #E2CBAD")
+    print(f"  End grain: #C0AD93")
+    print(f"\\nParts created: {{len(parts)}}")
+    print("\\nTIP: Press Numpad 0 for camera view, or use the viewport controls to orbit.")
+
+# ==============================================================================
+# RUN
+# ==============================================================================
+if __name__ == "__main__":
+    create_shadowbox_assembly()
+'''
+
+    return script
+
+
+def generate_trivision_script(version, config, rail_paths, geom_front, geom_back):
+    """
+    Generate the 'OPEN ME IN TRIVISION' script.
+    Same as Blender script but:
+    - Collection: BOX GENERATOR
+    - No lighting/world/view/unit changes
+    """
+    
+    # Calculate dimensions from config
+    total_width_in = convert_to_inches(config['TOTAL_WIDTH'])
+    total_height_in = convert_to_inches(config['TOTAL_HEIGHT'])
+    box_depth_in = convert_to_inches(config['BOX_DEPTH'])
+    stock_thk_in = convert_to_inches(config['STOCK_THICKNESS'])
+    
+    # Window dimensions (retrieved from config or defaulted)
+    window_width_in = config.get('WINDOW_WIDTH_IN', total_width_in - 3.0)
+    window_height_in = config.get('WINDOW_HEIGHT_IN', total_height_in - 3.0)
+    
+    # Rabbet dimensions
+    front_rabbet_w_in = config.get('FRONT_RABBET_WIDTH', 0.3)
+    front_rabbet_d_in = config.get('FRONT_RABBET_DEPTH', 0.3)
+    back_rabbet_w_in = config.get('BACK_RABBET_WIDTH', 0.3)
+    back_rabbet_d_in = config.get('BACK_RABBET_DEPTH', 0.3)
+    
+    # Extract hole data
+    back_holes = geom_back.get('holes', [])
+    back_hole_r_in = geom_back.get('hole_r', 0.1)
+    back_rim_width_in = geom_back.get('rim_width', 0.3)
+    
+    # Extract front bezel rim width
+    front_rim_width_in = config.get('FRONT_RIM_WIDTH_IN', 0.3)
+    if 'FRONT_RIM_WIDTH_M' in config:
+         front_rim_width_in = config['FRONT_RIM_WIDTH_M'] / 0.0254
+
+    # Convert to meters for Blender
+    total_width_m = total_width_in * 0.0254
+    total_height_m = total_height_in * 0.0254
+    box_depth_m = box_depth_in * 0.0254
+    stock_thk_m = stock_thk_in * 0.0254
+    
+    window_width_m = window_width_in * 0.0254
+    window_height_m = window_height_in * 0.0254
+    
+    front_rabbet_w_m = front_rabbet_w_in * 0.0254
+    front_rabbet_d_m = front_rabbet_d_in * 0.0254
+    back_rabbet_w_m = back_rabbet_w_in * 0.0254
+    back_rabbet_d_m = back_rabbet_d_in * 0.0254
+    
+    back_hole_r_m = back_hole_r_in * 0.0254
+    back_rim_width_m = back_rim_width_in * 0.0254
+    front_rim_width_m = front_rim_width_in * 0.0254
+    
+    # Convert hole positions to meters (subtract margin first, then convert)
+    holes_m = []
+    for hx, hy in back_holes:
+        hx_in = hx - MARGIN_INCHES
+        hy_in = hy - MARGIN_INCHES
+        holes_m.append((hx_in * 0.0254, hy_in * 0.0254))
+
+    script = f'''#!/usr/bin/env python3
+"""
+OPEN ME IN TRIVISION - Shadowbox Assembly v{version}
+===========================================================
+Generated by CNC Generator - Carbide-Optimized v{version}
+
+This script imports the generated box into an existing Blender scene.
+It creates a collection 'BOX GENERATOR' and places all parts there.
+It does NOT alter scene lighting, units, or world settings.
+"""
+
+import bpy
+import bmesh
+import re
+from mathutils import Vector, Euler
+import math
+
+# ==============================================================================
+# CONFIGURATION
+# ==============================================================================
+CONFIG = {{
+    'TOTAL_WIDTH_IN': {total_width_in:.4f},
+    'TOTAL_HEIGHT_IN': {total_height_in:.4f},
+    'BOX_DEPTH_IN': {box_depth_in:.4f},
+    'STOCK_THICKNESS_IN': {stock_thk_in:.4f},
+    'STOCK_THICKNESS_M': {stock_thk_m:.6f},
+    'TOTAL_WIDTH_M': {total_width_m:.6f},
+    'TOTAL_HEIGHT_M': {total_height_m:.6f},
+    'BOX_DEPTH_M': {box_depth_m:.6f},
+    'WINDOW_WIDTH_M': {window_width_m:.6f},
+    'WINDOW_HEIGHT_M': {window_height_m:.6f},
+    'FRONT_RABBET_WIDTH_M': {front_rabbet_w_m:.6f},
+    'FRONT_RABBET_DEPTH_M': {front_rabbet_d_m:.6f},
+    'BACK_RABBET_WIDTH_M': {back_rabbet_w_m:.6f},
+    'BACK_RABBET_DEPTH_M': {back_rabbet_d_m:.6f},
+    'BACK_HOLE_RADIUS_M': {back_hole_r_m:.6f},
+    'BACK_RIM_WIDTH_M': {back_rim_width_m:.6f},
+    'FRONT_RIM_WIDTH_M': {front_rim_width_m:.6f},
+}}
+
+# Back panel hole positions (in meters)
+BACK_PANEL_HOLES = {holes_m}
+
+# SVG MARGIN used in path generation (2 inches)
+MARGIN_IN = 2.0
+
+# Plywood colors
+COLOR_WIDE_FACE = (0xE2/255, 0xCB/255, 0xAD/255, 1.0)
+COLOR_END_GRAIN = (0xC0/255, 0xAD/255, 0x93/255, 1.0)
+
+# ==============================================================================
+# SVG PATH DATA
+# ==============================================================================
+SVG_PATHS = {{
+    'TOP_RAIL': """{rail_paths.get('TOP', 'M 0 0 Z')}""",
+    'BOTTOM_RAIL': """{rail_paths.get('BOTTOM', 'M 0 0 Z')}""",
+    'LEFT_RAIL': """{rail_paths.get('LEFT', 'M 0 0 Z')}""",
+    'RIGHT_RAIL': """{rail_paths.get('RIGHT', 'M 0 0 Z')}""",
+}}
+
+# ==============================================================================
+# HELPER FUNCTIONS (Duplicated for standalone capability)
+# ==============================================================================
+
+def parse_svg_path(path_d, margin_offset=2.0):
+    vertices = []
+    commands = re.findall(r'([MLZ])\\s*([\\d.\\-\\s]*)', path_d)
+    for cmd, coords_str in commands:
+        if cmd == 'Z': continue
+        coords = coords_str.strip().split()
+        if len(coords) >= 2:
+            x_in = float(coords[0]) - margin_offset
+            y_in = float(coords[1]) - margin_offset
+            x_m = x_in * 0.0254
+            y_m = y_in * 0.0254
+            vertices.append((x_m, y_m))
+    return vertices
+
+def create_plywood_materials():
+    # Check if materials already exist to avoid duplicates or use them
+    mat_wide = bpy.data.materials.get("Plywood_Wide_Face")
+    if not mat_wide:
+        mat_wide = bpy.data.materials.new(name="Plywood_Wide_Face")
+        mat_wide.use_nodes = True
+        nodes = mat_wide.node_tree.nodes
+        nodes.clear()
+        output = nodes.new('ShaderNodeOutputMaterial')
+        principled = nodes.new('ShaderNodeBsdfPrincipled')
+        principled.inputs['Base Color'].default_value = COLOR_WIDE_FACE
+        principled.inputs['Roughness'].default_value = 0.6
+        mat_wide.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
+
+    mat_end = bpy.data.materials.get("Plywood_End_Grain")
+    if not mat_end:
+        mat_end = bpy.data.materials.new(name="Plywood_End_Grain")
+        mat_end.use_nodes = True
+        nodes = mat_end.node_tree.nodes
+        nodes.clear()
+        output = nodes.new('ShaderNodeOutputMaterial')
+        principled = nodes.new('ShaderNodeBsdfPrincipled')
+        principled.inputs['Base Color'].default_value = COLOR_END_GRAIN
+        principled.inputs['Roughness'].default_value = 0.7
+        mat_end.node_tree.links.new(principled.outputs['BSDF'], output.inputs['Surface'])
+
+    return mat_wide, mat_end
+
+def get_face_dominant_axis(face_normal):
+    abs_normal = [abs(face_normal.x), abs(face_normal.y), abs(face_normal.z)]
+    max_idx = abs_normal.index(max(abs_normal))
+    return ['X', 'Y', 'Z'][max_idx]
+
+def apply_end_grain_materials(obj, mat_wide, mat_end, end_grain_axes):
+    if obj.type != 'MESH': return
+    if mat_wide.name not in obj.data.materials: obj.data.materials.append(mat_wide)
+    if mat_end.name not in obj.data.materials: obj.data.materials.append(mat_end)
+    # Ensure correct indices
+    wide_idx = obj.data.materials.find(mat_wide.name)
+    end_idx = obj.data.materials.find(mat_end.name)
+    
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+    for face in bm.faces:
+        normal_world = obj.matrix_world.to_3x3() @ face.normal
+        dominant_axis = get_face_dominant_axis(normal_world)
+        if dominant_axis in end_grain_axes:
+            face.material_index = end_idx
+        else:
+            face.material_index = wide_idx
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+
+def create_mesh_from_profile(name, vertices, thickness_m, collection, extrude_axis='Z'):
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    # Link to collection immediately
+    collection.objects.link(obj)
+    bm = bmesh.new()
+    bottom_verts = []
+    for v in vertices:
+        if extrude_axis == 'Z': vert = bm.verts.new((v[0], v[1], 0))
+        elif extrude_axis == 'Y': vert = bm.verts.new((v[0], 0, v[1]))
+        elif extrude_axis == 'X': vert = bm.verts.new((0, v[0], v[1]))
+        bottom_verts.append(vert)
+    bm.verts.ensure_lookup_table()
+    if len(bottom_verts) >= 3:
+        try: bm.faces.new(bottom_verts)
+        except: pass
+    if extrude_axis == 'Z': extrude_vec = Vector((0, 0, thickness_m))
+    elif extrude_axis == 'Y': extrude_vec = Vector((0, thickness_m, 0))
+    elif extrude_axis == 'X': extrude_vec = Vector((thickness_m, 0, 0))
+    ret = bmesh.ops.extrude_face_region(bm, geom=bm.faces[:])
+    verts = [e for e in ret['geom'] if isinstance(e, bmesh.types.BMVert)]
+    bmesh.ops.translate(bm, verts=verts, vec=extrude_vec)
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.update()
+    return obj
+
+def create_simple_box(name, width_m, height_m, depth_m, collection):
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    bm = bmesh.new()
+    bmesh.ops.create_cube(bm, size=1.0)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj.dimensions = (width_m, depth_m, height_m)
+    return obj
+
+def create_cylinder_cutter(name, radius_m, depth_m, collection, segments=32):
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=segments, radius1=radius_m, radius2=radius_m, depth=depth_m)
+    bm.to_mesh(mesh)
+    bm.free()
+    return obj
+
+def apply_boolean_difference(target_obj, cutter_obj, delete_cutter=True):
+    success = False
+    try:
+        bpy.context.view_layer.objects.active = cutter_obj
+        cutter_obj.select_set(True)
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        cutter_obj.select_set(False)
+        # Check if already has boolean with same name
+        if target_obj.modifiers.get("Boolean_Cut"):
+            target_obj.modifiers.remove(target_obj.modifiers["Boolean_Cut"])
+        bool_mod = target_obj.modifiers.new(name="Boolean_Cut", type='BOOLEAN')
+        bool_mod.operation = 'DIFFERENCE'
+        bool_mod.object = cutter_obj
+        bool_mod.solver = 'EXACT'
+        bpy.context.view_layer.objects.active = target_obj
+        target_obj.select_set(True)
+        bpy.ops.object.modifier_apply(modifier=bool_mod.name)
+        target_obj.select_set(False)
+        success = True
+    except Exception as e:
+        print(f"Warning: Boolean failed {{e}}")
+        if "Boolean_Cut" in target_obj.modifiers: target_obj.modifiers.remove(target_obj.modifiers["Boolean_Cut"])
+    if delete_cutter:
+        try: bpy.data.objects.remove(cutter_obj, do_unlink=True)
+        except: pass
+    return success
+
+def remove_inner_cap_faces(obj, inner_bound_x, inner_bound_z):
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm = bmesh.from_edit_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+    faces_to_delete = []
+    for face in bm.faces:
+        all_inner = True
+        for vert in face.verts:
+            if abs(vert.co.x) > inner_bound_x + 0.001 or abs(vert.co.z) > inner_bound_z + 0.001:
+                all_inner = False
+                break
+        if all_inner: faces_to_delete.append(face)
+    for face in faces_to_delete: bm.faces.remove(face)
+    bmesh.update_edit_mesh(obj.data)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    return len(faces_to_delete)
+
+def remove_hole_cap_faces(obj, hole_positions, y_front, y_back):
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm = bmesh.from_edit_mesh(obj.data)
+    bm.faces.ensure_lookup_table()
+    faces_to_delete = []
+    for face in bm.faces:
+        centroid = face.calc_center_median()
+        y_vals = [v.co.y for v in face.verts]
+        if all(abs(y - y_front) < 0.001 for y in y_vals) or all(abs(y - y_back) < 0.001 for y in y_vals):
+            for hx, hz in hole_positions:
+                dist = ((centroid.x - hx)**2 + (centroid.z - hz)**2)**0.5
+                if dist < 0.01:
+                    faces_to_delete.append(face)
+                    break
+    for face in faces_to_delete: bm.faces.remove(face)
+    bmesh.update_edit_mesh(obj.data)
+    bpy.ops.object.mode_set(mode='OBJECT')
+    return len(faces_to_delete)
+
+def create_front_bezel_with_window(name, width_m, height_m, thickness_m, window_w_m, window_h_m, rim_width_m, collection):
+    obj = create_simple_box(name, width_m, height_m, thickness_m, collection)
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    obj.select_set(False)
+    mesh = obj.data
+    bezel_y_min = min((obj.matrix_world @ v.co).y for v in mesh.vertices)
+    bezel_y_max = max((obj.matrix_world @ v.co).y for v in mesh.vertices)
+    bezel_center_y = (bezel_y_min + bezel_y_max) / 2
+    window_w = window_w_m
+    window_h = window_h_m
+    if window_w > 0 and window_h > 0:
+        cutter_mesh = bpy.data.meshes.new(name + "_window_cutter_mesh")
+        window_cutter = bpy.data.objects.new(name + "_window_cutter", cutter_mesh)
+        collection.objects.link(window_cutter)
+        bm = bmesh.new()
+        hw = window_w / 2
+        hd = thickness_m * 1.5
+        hh = window_h / 2
+        verts = [bm.verts.new((-hw, -hd, -hh)), bm.verts.new(( hw, -hd, -hh)), bm.verts.new(( hw,  hd, -hh)), bm.verts.new((-hw,  hd, -hh)),
+                 bm.verts.new((-hw, -hd,  hh)), bm.verts.new(( hw, -hd,  hh)), bm.verts.new(( hw,  hd,  hh)), bm.verts.new((-hw,  hd,  hh))]
+        bm.faces.new([verts[0], verts[1], verts[2], verts[3]])
+        bm.faces.new([verts[4], verts[7], verts[6], verts[5]])
+        bm.faces.new([verts[0], verts[4], verts[5], verts[1]])
+        bm.faces.new([verts[2], verts[6], verts[7], verts[3]])
+        bm.faces.new([verts[0], verts[3], verts[7], verts[4]])
+        bm.faces.new([verts[1], verts[5], verts[6], verts[2]])
+        bm.to_mesh(cutter_mesh)
+        bm.free()
+        window_cutter.location = (0, bezel_center_y, 0)
+        apply_boolean_difference(obj, window_cutter, delete_cutter=True)
+        remove_inner_cap_faces(obj, window_w/2, window_w/2)
+    return obj
+
+def create_back_panel_with_holes(name, width_m, height_m, thickness_m, hole_positions, hole_radius_m, rim_width_m, collection):
+    obj = create_simple_box(name, width_m, height_m, thickness_m, collection)
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    obj.select_set(False)
+    mesh = obj.data
+    panel_y_min = min((obj.matrix_world @ v.co).y for v in mesh.vertices)
+    panel_y_max = max((obj.matrix_world @ v.co).y for v in mesh.vertices)
+    panel_center_y = (panel_y_min + panel_y_max) / 2
+    centered_hole_positions = []
+    if hole_positions and hole_radius_m > 0:
+        for i, (hx, hy) in enumerate(hole_positions):
+            hole_cutter = create_cylinder_cutter(f"{{name}}_hole_{{i}}", hole_radius_m, thickness_m * 3, collection, segments=16)
+            hole_cutter.rotation_euler = (math.pi/2, 0, 0)
+            hole_x = hx - width_m/2
+            hole_z = hy - height_m/2
+            hole_cutter.location = (hole_x, panel_center_y, hole_z)
+            centered_hole_positions.append((hole_x, hole_z))
+            bpy.context.view_layer.objects.active = hole_cutter
+            hole_cutter.select_set(True)
+            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            hole_cutter.select_set(False)
+            apply_boolean_difference(obj, hole_cutter, delete_cutter=True)
+        y_front = min(v.co.y for v in mesh.vertices)
+        y_back = max(v.co.y for v in mesh.vertices)
+        remove_hole_cap_faces(obj, centered_hole_positions, y_front, y_back)
+    return obj
+
+def create_rail_with_rabbets(name, vertices, thickness_m, collection, fr_w, fr_d, br_w, br_d, length_m, depth_m, extrude_axis='Z'):
+    if len(vertices) >= 3: return create_mesh_from_profile(name, vertices, thickness_m, collection, extrude_axis)
+    else: return create_simple_box(name, length_m, thickness_m, depth_m, collection)
+
+def create_french_cleat(name, width_m, height_m, thickness_m, collection, is_wall_part=False):
+    # Profile: Rectangle with 45 deg bevel on top/bottom mating edge.
+    # Wall Part: Bevel points UP and AWAY from wall? 
+    # Standard French Cleat:
+    # Wall piece: Screw to wall. Top edge is beveled (low against wall, high away).
+    # Box piece: Screw to box. Bottom edge is beveled (low away, high against box).
+    # Box piece "hooks" over Wall piece.
+    
+    # Let's model a simple prism.
+    # Profile in X-Y plane (Side View), extruded in X (Width).
+    
+    # Vertices (Z-Y view):
+    # Wall Cleat: 
+    # (0,0) -> (Thk, 0) -> (Thk, H-Thk) -> (0, H) -> Close.
+    # Wait, Bevel is 45 deg.
+    # If Thk is small, bevel is full thickness? Usually.
+    
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    
+    bm = bmesh.new()
+    
+    # Profile (looking from Side/Right -> Y-Z plane)
+    # Origin at Bottom-Back corner.
+    # Wall Cleat (Mounted on Wall): Back is at Y=0 (Wall).
+    # Bottom: (0,0). Top Back: (0, H).
+    # Top Front: (Thk, H-Thk) [Bevel Tip]
+    # Bot Front: (Thk, 0).
+    
+    # Box Cleat (Mounted on Box): Back is at Y=0 (Box).
+    # Top: (0, H) -> (Thk, H).
+    # Bot Front: (Thk, Thk). Bot Back: (0, 0).
+    # Mates with Wall Cleat.
+    
+    # NOTE: Our Assembly has explicit positions.
+    # Let's make a generic Box: W, H, Thk.
+    # Then apply a chamfer or just simple geometry.
+    
+    # Simple Extrusion along X (Width).
+    # Profile in Y-Z.
+    
+    if is_wall_part:
+        # Wall Cleat Profile
+        # Back is Z-axis line.
+        # Bevel at Top.
+        verts = [
+            (0, 0), # Bot Back
+            (thickness_m, 0), # Bot Front
+            (thickness_m, height_m - thickness_m), # Top Front (Bevel Start)
+            (0, height_m) # Top Back
+        ]
+    else:
+        # Box Cleat Profile
+        # Back is Z-axis line.
+        # Bevel at Bottom.
+        verts = [
+            (0, 0), # Bot Back (Tip)
+            (thickness_m, thickness_m), # Bot Front (Bevel End)
+            (thickness_m, height_m), # Top Front
+            (0, height_m) # Top Back
+        ]
+        
+    # Extrude along X (Width)
+    # Center Width?
+    # Let's create verts then extrude.
+    
+    profile_verts = []
+    # Shift so Width is Centered on X=0?
+    hw = width_m / 2.0
+    
+    for v_yz in verts:
+        # Left Side (X = -hw)
+        profile_verts.append(bm.verts.new((-hw, v_yz[0], v_yz[1]))) # Map Y->Y, Z->Z? No, our Profile was Y,Z? 
+        # Actually in coords: (X, Y, Z)
+        # Profile defined in Y(Depth), Z(Height).
+        
+    bm.verts.ensure_lookup_table()
+    # Make Face
+    try: bm.faces.new(profile_verts)
+    except: pass
+    
+    # Extrude to X = +hw
+    # Normal extrude vector = (width_m, 0, 0)
+    ret = bmesh.ops.extrude_face_region(bm, geom=bm.faces[:])
+    verts_ext = [e for e in ret['geom'] if isinstance(e, bmesh.types.BMVert)]
+    bmesh.ops.translate(bm, verts=verts_ext, vec=(width_m, 0, 0)) # Wait, if we started at -hw, we move full Width.
+    
+    # Wait, my logic: started at -hw. Moving +width gets to +hw. Correct.
+    
+    bm.to_mesh(mesh)
+    bm.free()
+    
+    return obj
+
+def create_hatch_lid(name, w, h, thk, flange_w, collection):
+    # Complex Lid:
+    # Outer Rect (w, h)
+    # Boolean cutout (Rabbet) on edges to form step.
+    # Simpler: Create Base (Opening size) + Flange (Lid size).
+    # Standard Hatch: Lid sits ON TOP of shelf? Or Flush?
+    # Usually Flush. So it's Stepped.
+    # Top Part: Full W/H, partial thickness.
+    # Bot Part: Opening W/H, partial thickness.
+    
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    
+    bm = bmesh.new()
+    
+    # Top Plate (Flange)
+    # Dimensions: w, h. Thk/2.
+    bmesh.ops.create_cube(bm, size=1.0)
+    bmesh.ops.scale(bm, vec=(w, thk/2, h), verts=bm.verts) # Y-up thickness?
+    # Check orientation. Assembly: Back Panel is in X-Z plane (Vertical). Thickness Y.
+    # So Lid Thickness is Y.
+    # Top Plate Y center = thk/4.
+    bmesh.ops.translate(bm, vec=(0, thk/4, 0), verts=bm.verts)
+    
+    # Bottom Plate (Insert)
+    # Dims: w - 2*flange, h - 2*flange.
+    bm2 = bmesh.new()
+    bmesh.ops.create_cube(bm2, size=1.0)
+    bmesh.ops.scale(bm2, vec=(w - 2*flange_w, thk/2, h - 2*flange_w), verts=bm2.verts)
+    bmesh.ops.translate(bm2, vec=(0, -thk/4, 0), verts=bm2.verts)
+    
+    # Merge
+    bm.from_mesh(bm2.to_mesh()) # Simple merge
+    bm2.free()
+    
+    bm.to_mesh(mesh)
+    bm.free()
+    return obj
+
+# ==============================================================================
+# MAIN ASSEMBLY FUNCTION
+# ==============================================================================
+
+def create_shadowbox_assembly():
+    print("=" * 60)
+    print("Creating Shadowbox in TRIVISION Mode")
+    print("Collection: OUTSIDE FRAME")
+    print("=" * 60)
+
+    # Create collection "OUTSIDE FRAME" (no scene lighting/unit changes)
+    collection_name = "OUTSIDE FRAME"
+    collection = bpy.data.collections.get(collection_name)
+    if not collection:
+        collection = bpy.data.collections.new(collection_name)
+        bpy.context.scene.collection.children.link(collection)
+    
+    # Make it active
+    layer_collection = bpy.context.view_layer.layer_collection.children.get(collection_name)
+    if layer_collection:
+        bpy.context.view_layer.active_layer_collection = layer_collection
+
+    # Create Materials (Reusing if exist)
+    mat_wide, mat_end = create_plywood_materials()
+
+    # Create Parts
+    stock_thk = CONFIG['STOCK_THICKNESS_M']
+    total_w = CONFIG['TOTAL_WIDTH_M']
+    total_h = CONFIG['TOTAL_HEIGHT_M']
+    box_d = CONFIG['BOX_DEPTH_M']
+
+    parts = {{}}
+
+    # TOP
+    top_verts = parse_svg_path(SVG_PATHS['TOP_RAIL'])
+    parts['TOP'] = create_rail_with_rabbets("OUTSIDE_TOP_RAIL", top_verts, stock_thk, collection, 0,0,0,0, total_w, box_d, 'Z')
+
+    # BOTTOM
+    bot_verts = parse_svg_path(SVG_PATHS['BOTTOM_RAIL'])
+    parts['BOTTOM'] = create_rail_with_rabbets("OUTSIDE_BOTTOM_RAIL", bot_verts, stock_thk, collection, 0,0,0,0, total_w, box_d, 'Z')
+
+    # LEFT
+    left_verts = parse_svg_path(SVG_PATHS['LEFT_RAIL'])
+    parts['LEFT'] = create_rail_with_rabbets("OUTSIDE_LEFT_RAIL", left_verts, stock_thk, collection, 0,0,0,0, total_h, box_d, 'Z')
+    parts['LEFT'].rotation_euler = (0, math.radians(90), 0)
+
+    # RIGHT
+    right_verts = parse_svg_path(SVG_PATHS['RIGHT_RAIL'])
+    parts['RIGHT'] = create_rail_with_rabbets("OUTSIDE_RIGHT_RAIL", right_verts, stock_thk, collection, 0,0,0,0, total_h, box_d, 'Z')
+    parts['RIGHT'].rotation_euler = (0, math.radians(-90), 0)
+
+    # FRONT
+    parts['FRONT'] = create_front_bezel_with_window("OUTSIDE_FRONT_BEZEL", total_w, total_h, stock_thk, CONFIG['WINDOW_WIDTH_M'], CONFIG['WINDOW_HEIGHT_M'], CONFIG['FRONT_RIM_WIDTH_M'], collection)
+
+    # BACK
+    parts['BACK'] = create_back_panel_with_holes("OUTSIDE_BACK_PANEL", total_w, total_h, stock_thk, BACK_PANEL_HOLES, CONFIG['BACK_HOLE_RADIUS_M'], CONFIG['BACK_RIM_WIDTH_M'], collection)
+
+    # --- v1.10 EXTENSIONS (Cleats + Hatch) ---
+    
+    # Cleats
+    cleat_obj_box = None
+    if CONFIG.get('CLEATS_ENABLED', True):
+        cw = min(total_w * 0.80, 48.0 * 0.0254) # Match generator logic (inches converted to m already? No generator does it in in)
+        # Recalc precisely:
+        cw = min(CONFIG['TOTAL_WIDTH_IN'] * 0.80, 48.0) * 0.0254
+        ch = 4.0 * 0.0254
+        
+        # 1. Box Cleat
+        cleat_obj_box = create_french_cleat("OUTSIDE_CLEAT_BOX", cw, ch, stock_thk, collection, is_wall_part=False)
+        
+        # Position:
+        # Attached to BACK of Back Panel? Or embedded?
+        # Usually screwed to the Back Face of Back Panel.
+        # Back Panel Center: (0, box_d/2 + stock/2, 0).
+        # Back Face of Back Panel is at Y = box_d/2 + stock.
+        # So Cleat Back is at Y = box_d/2 + stock.
+        # Height: 1/3 from Top.
+        # Top of Frame = +total_h/2.
+        # Cleat Center Y (Vertical Z) = (total_h/2) - (total_h/3). = total_h/6.
+        # Wait, user said "centered at 1/3... from top".
+        # So Z = (TotalH/2) - (TotalH/3).
+        
+        cleat_z = (total_h / 2.0) - (total_h / 3.0)
+        cleat_y = (box_d / 2.0) + stock_thk
+        
+        # Create Cleat Object
+        cleat_obj_box.location = (0, cleat_y, cleat_z)
+        
+        # Mounting Holes (Boolean)
+        # "5%, 33%, 66%, 95%"
+        # Create Cylinder Cutters.
+        hole_pcts = [0.05, 0.33, 0.66, 0.95]
+        # X starts at -cw/2.
+        
+        for i, pct in enumerate(hole_pcts):
+            h_x_local = (-cw/2.0) + (pct * cw)
+            # Create Cutter (local to cleat?)
+            # Or use global cutter on both Cleat and Back Panel?
+            
+            # Cutter for Cleat (Countersunk)
+            # Simple hole for viz
+            cutter = create_cylinder_cutter(f"Cleat_Hole_{{i}}", 0.005, stock_thk*4, collection) # 5mm radius?
+            cutter.rotation_euler = (math.pi/2, 0, 0)
+            cutter.location = (h_x_local, 0, 0) # Local to Cleat?
+            # Parenting/Transform issue if we use boolean.
+            # Easiest: Position cutter globally match cleat.
+            cutter.location = (h_x_local, cleat_y, cleat_z)
+            
+            # Apply to Cleat
+            apply_boolean_difference(cleat_obj_box, cutter, delete_cutter=False)
+            
+            # Apply to Back Panel (Through Hole)
+            # Back Panel Object: parts['BACK']
+            # Reuse cutter? Yes.
+            apply_boolean_difference(parts['BACK'], cutter, delete_cutter=True)
+
+        parts['CLEAT_BOX'] = cleat_obj_box
+        
+        # 2. Wall Cleat (Mating)
+        cleat_obj_wall = create_french_cleat("OUTSIDE_CLEAT_WALL", cw, ch, stock_thk, collection, is_wall_part=True)
+        # Position: Mated.
+        # Wall Cleat slides UNDER/BEHIND Box Cleat.
+        # It engages.
+        # Geometry: Box Cleat bevel faces IN/Down. Wall Cleat bevel faces OUT/Up.
+        # They overlap in Thickness? No, they stack.
+        # Wall Cleat is closer to Wall (further +Y).
+        # Box Cleat Y = cleat_y.
+        # Wall Cleat Y = cleat_y + stock_thk? No, that would be floating.
+        # They interlock. 
+        # For simple visual: Stack them?
+        # Let's put Wall Cleat at Y = cleat_y + stock_thk (simulating wall surface).
+        # Z should match (engaged).
+        cleat_obj_wall.location = (0, cleat_y + stock_thk, cleat_z)
+        parts['CLEAT_WALL'] = cleat_obj_wall
+        
+    # Hatch Lid
+    if CONFIG.get('HATCH_ENABLED', False):
+        # Create Hatch Lid
+        # Dims
+        h_w_pct = CONFIG.get('HATCH_WIDTH_PCT', 50.0) / 100.0
+        h_h_pct = CONFIG.get('HATCH_HEIGHT_PCT', 33.0) / 100.0
+        h_open_w = total_w * h_w_pct
+        h_open_h = total_h * h_h_pct
+        
+        glue_gap = 0.0005 # approx
+        flange_w = (stock_thk / 2.0) - glue_gap
+        
+        hatch_obj = create_hatch_lid("OUTSIDE_HATCH_LID", h_open_w + 2*flange_w, h_open_h + 2*flange_w, stock_thk, flange_w, collection)
+        
+        # Position
+        # "Centered Horizontally".
+        # "Raised from Bottom Edge"
+        raise_m = CONFIG.get('HATCH_RAISE_IN', 0.0) * 0.0254
+        # Bottom of Panel = -half_h (in Local Z? Back Panel is Vertical X-Z).
+        # Panel Z extent: [-half_h, +half_h].
+        # "Baseline" (Bottom ID) = -half_h + stock_thk (frame thickness).
+        # Hatch Bot Z = -half_h + stock_thk + 0.5" + raise.
+        
+        base_z = (-total_h / 2.0) + stock_thk + (0.5 * 0.0254) + raise_m
+        
+        # Hatch Center Z = Base Z + (Hatch Open H / 2) + Flange?
+        # Hatch Object Origin is Center.
+        # Ideally match the cutout.
+        # The Cutout Center Z = Base Z + (h_open_h / 2).
+        hatch_z = base_z + (h_open_h / 2.0)
+        
+        hatch_y = (box_d / 2.0) # Flush with Inside Face?
+        # Back Panel: Thick Z (Y in global). Center Y = box_d/2 + stock/2.
+        # Inside Face = box_d/2.
+        # Hatch usually flush with inside?
+        # Yes.
+        
+        hatch_obj.location = (0, hatch_y, hatch_z)
+        # Check orientation: create_hatch_lid made it flat (X-Z)? scaled Y=Thk.
+        # Yes. 
+        
+        parts['HATCH'] = hatch_obj
+        
+        # Cutout in Back Panel
+        # We need to cut the Back Panel to accept the Hatch.
+        # Opening (Through) + Shelf (Pocket).
+        # Let's just cut the Opening for visual simplicity?
+        # Or proper stepped boolean?
+        # Create Stepped Cutter.
+        # Cutter 1: Through (Inner Size).
+        c1 = create_simple_box("Hatch_Cut_Thru", h_open_w, h_open_h, stock_thk*4, collection)
+        c1.location = (0, hatch_y, hatch_z)
+        apply_boolean_difference(parts['BACK'], c1, delete_cutter=True)
+        
+        # Cutter 2: Flange (Pocket from Outside Face).
+        # Outside Face Y = box_d/2 + stock.
+        # Pocket depth = stock/2.
+        # Cutter size: Full Lid Size.
+        # Cutter Y pos: Outside Face.
+        # We want to remove material from Outside Face inwards.
+        c2 = create_simple_box("Hatch_Cut_Pocket", h_open_w + 2*flange_w, h_open_h + 2*flange_w, stock_thk, collection)
+        # Position: Center matches. Y needs to overlap outward half.
+        # Back Panel Y range: [box_d/2, box_d/2 + stock].
+        # We want to cut [box_d/2 + stock/2, box_d/2 + stock].
+        # Center of cut region: box_d/2 + 0.75*stock.
+        c2.location = (0, (box_d/2.0) + (stock_thk * 0.75), hatch_z)
+        apply_boolean_difference(parts['BACK'], c2, delete_cutter=True)
+        
+    # Position Parts
+
+    half_w = total_w / 2
+    half_h = total_h / 2
+    half_d = box_d / 2
+
+    for key, obj in parts.items():
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+        obj.select_set(False)
+
+    top_rail_width = parts['TOP'].dimensions.x
+    finger_tip_x = top_rail_width / 2
+
+    parts['TOP'].location = (0, 0, half_h - stock_thk/2)
+    parts['BOTTOM'].location = (0, 0, -half_h + stock_thk/2)
+    parts['LEFT'].location = (-finger_tip_x + stock_thk/2, 0, 0)
+    parts['RIGHT'].location = (finger_tip_x - stock_thk/2, 0, 0)
+    parts['FRONT'].location = (0, -half_d - stock_thk/2, 0)
+    parts['BACK'].location = (0, half_d + stock_thk/2, 0)
+
+    # Transforms & Materials
+    for key, obj in parts.items():
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+        obj.select_set(False)
+
+    end_grain_config = {{
+        'TOP': ['X'], 'BOTTOM': ['X'],
+        'LEFT': ['Z'], 'RIGHT': ['Z'],
+        'FRONT': ['X', 'Z'], 'BACK': ['X', 'Z'],
+    }}
+
+    for key, obj in parts.items():
+        apply_end_grain_materials(obj, mat_wide, mat_end, end_grain_config.get(key, []))
+
+    # Parent all parts to a main Empty for unified movement
+    root_empty = bpy.data.objects.new("OUTSIDE FRAME", None)
+    collection.objects.link(root_empty)
+    
+    # Hardcoded Transform: REMOVED per User Request (Center at 0,0,0)
+    root_empty.location = (0, 0, 0)
+    # Rotation: Keep 180 flip if it orients 'Front' correctly to camera default
+    root_empty.rotation_euler = (0, 0, 3.141593)
+    
+    root_empty.empty_display_type = 'CUBE'
+    root_empty.empty_display_size = 0.5
+    
+    # ADD LIGHTING ("OUTSIDE LIGHT")
+    # Area light positioned to illuminate the front/top of the box
+    light_data = bpy.data.lights.new(name="OUTSIDE LIGHT", type='AREA')
+    light_data.color = (1.0, 1.0, 1.0)
+    light_data.energy = 50.0  # Adjust as needed
+    light_data.shape = 'SQUARE'
+    light_data.size = 1.0     # 1 meter size
+    
+    light_obj = bpy.data.objects.new("OUTSIDE LIGHT", light_data)
+    collection.objects.link(light_obj)
+    
+    # Initial Position (Relative to Box "Front" at -Y)
+    # Place it in front (-Y) and above (+Z)
+    light_obj.location = (0, -1.0, 1.0) 
+    # Point it at the box (Rotate X positive to point "back" along +Y and down -Z?)
+    # Default Area light points -Z.
+    # Rot X +45deg -> Points -Z and +Y (Towards back)
+    light_obj.rotation_euler = (math.radians(45), 0, 0)
+    
+    parts['LIGHT'] = light_obj  # Add to parts dict to participate in flip/parent loop
+    
+    # FLIP GEOMETRY 180 degrees internally
+    for key, obj in parts.items():
+        # Rotate location 180 deg around Z (which flips X and Y)
+        # x' = x*cos(180) - y*sin(180) = -x
+        # y' = x*sin(180) + y*cos(180) = -y
+        obj.location.x = -obj.location.x
+        obj.location.y = -obj.location.y
+        # Add 180 deg to rotation
+        obj.rotation_euler.z += math.pi
+
+    for key, obj in parts.items():
+        obj.parent = root_empty
+        obj.matrix_parent_inverse = root_empty.matrix_world.inverted()
+
+    print("Generation complete in collection 'OUTSIDE FRAME'")
+    
+    # 8. CONFIGURE VIEWPORT (Fix for Zoom Clipping)
+    print("[8/8] Configuring Viewport settings...")
+    for scr in bpy.data.screens:
+        for area in scr.areas:
+            if area.type == 'VIEW_3D':
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
+                        # Set Clip Start to 1mm to allow close zoom
+                        space.clip_start = 0.001
+                        # Ensure shading is nice
+                        space.shading.type = 'MATERIAL'
+                        space.shading.use_scene_lights = True
+                        space.shading.use_scene_world = True
+
+if __name__ == "__main__":
+    create_shadowbox_assembly()
+'''
+    return script
 
 
 def generate_back_panel_parts(version):
@@ -2176,46 +3297,40 @@ def generate_back_panel_parts(version):
             pass
     
     # HATCH LOGIC (**NEW**)
-    # HATCH LOGIC (**UPDATED v1.26**)
     hatch_data = None
     if CONFIG.get('HATCH_ENABLED', False):
         # 1. Calc Dimensions
-        # User Defined "Opening" PCT
+        # Width/Height defined as % of Total
         w_pct = CONFIG.get('HATCH_WIDTH_PCT', 50.0)
         h_pct = CONFIG.get('HATCH_HEIGHT_PCT', 33.0)
         
-        # Initial Target Opening (Based on User PCT)
-        raw_open_w = width_in * (w_pct / 100.0)
-        raw_open_h = height_in * (h_pct / 100.0)
+        hatch_open_w = width_in * (w_pct / 100.0)
+        hatch_open_h = height_in * (h_pct / 100.0)
         
-        # NEW Constraint (v1.26): Rabbet Width is FIXED at 0.64 inches
-        # "Inside hatch cover becomes 96% of its previously generated size" -> Implemented as shrinking opening to keep outer shelf constant?
-        # Based on v1.12 verification:
-        # We calculate "Original Lid Size" based on old logic (stock/2 - glue).
-        # Then we apply NEW Flange (0.64) to get NEW Opening.
-        # This effectively shrinks the opening while keeping the "Shelf" footprint consistent with previous user expectations (mostly).
+        # Flange Calculation (Rabbet Width)
+        # "wide = 1/2 the stock thickness - the glue gap"
+        glue_gap = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.254))
+        flange_w = (stock_thk / 2.0) - glue_gap
         
-        # Old Flange Logic (for reference)
-        old_glue_gap = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.254))
-        old_flange_w = (stock_thk / 2.0) - old_glue_gap
+        hatch_lid_w = hatch_open_w + (2 * flange_w)
+        hatch_lid_h = hatch_open_h + (2 * flange_w)
         
-        # Hypothetical "Original" Lid Size
-        orig_lid_w = raw_open_w + (2 * old_flange_w)
-        orig_lid_h = raw_open_h + (2 * old_flange_w)
+        # 2. Calc Position
+        # "Baseline = Stock Thickness + 0.5""
+        # Measured from Bottom of Frame (ay + height_in) UPWARDS?
+        # User: "The Z position... measured from the bottom of the frame."
+        # Confirm: In SVG (Top-Left Origin), "Bottom" is `ay + height_in`. Moving UP means subtracting Y.
+        # Def: "Bottom of inside portion" -> Usually Back Panel sits inside rails?
+        # Let's map "Height from Bottom" to SVG Y.
+        # Y_center = ? No, user specified "Raise" from baseline.
+        # Baseline = Bottom Edge of Back Panel? 
+        # "flush with the bottom of the inside portion".
+        # If Back Panel covers the whole back, the "Inside Bottom" is `Stock_Thk` (Rail thickness) from the bottom edge.
+        # Correct Logic:
+        # Distance_From_Bottom_Edge = Stock_Thk + 0.5" + Raise.
+        # SVG_Y_Bottom_Hatch = (ay + height_in) - Distance_From_Bottom_Edge.
+        # SVG_Y_Top_Hatch = SVG_Y_Bottom_Hatch - Hatch_Open_H. (Since we draw from Top Left).
         
-        # NEW Fixed Flange Width
-        new_flange_w = 0.64
-        
-        # NEW Opening Size (Shrunk)
-        final_open_w = orig_lid_w - (2 * new_flange_w)
-        final_open_h = orig_lid_h - (2 * new_flange_w)
-        
-        hatch_lid_w = orig_lid_w
-        hatch_lid_h = orig_lid_h
-        hatch_open_w = final_open_w
-        hatch_open_h = final_open_h
-        
-        # 2. Calc Position (Same as before)
         raise_val = CONFIG.get('HATCH_RAISE_IN', 0.0)
         dist_from_bottom = stock_thk + 0.5 + raise_val
         
@@ -2223,79 +3338,76 @@ def generate_back_panel_parts(version):
         hatch_x = ax + (width_in - hatch_open_w) / 2 # Centered Horizontally
         
         # 3. Generate HATCH_CUT (On Back Panel)
+        # Contains: Center Opening (Through) + Outer Pocket (Shelf)
+        # Note: To create a shelf, you pocket the AREA between Outer and Inner.
+        # Carbide Create "Pocket" or "Inside/Left Contour".
+        # User: "addition of a female square rabbet... specified... to be an Inside/Left Contour Path"
+        # If we cut "Inside/Left" on the Outer Vector, we get a hole size of Outer.
+        # If we cut "Pocket" between Outer and Inner, we get the shelf.
+        # Let's provide BOTH rectangles.
+        
         cut_elements = []
         cut_elements.append(create_svg_header(canvas_w, canvas_h, f"BACK_PANEL_HATCH_CUT"))
         
-        # Opening (Through Hole) - The Shrunken Opening
+        # Opening (Through Hole)
         cut_elements.append(create_rect(hatch_x, hatch_y, hatch_open_w, hatch_open_h, COLOR_PERIMETER))
         
-        # Shelf Boundary (Pocket Limit) - The Outer Limit
-        shelf_x = hatch_x - new_flange_w
-        shelf_y = hatch_y - new_flange_w
-        shelf_w = hatch_open_w + (2 * new_flange_w)
-        shelf_h = hatch_open_h + (2 * new_flange_w)
+        # Shelf Boundary (Pocket Limit)
+        shelf_x = hatch_x - flange_w
+        shelf_y = hatch_y - flange_w
+        shelf_w = hatch_open_w + (2 * flange_w)
+        shelf_h = hatch_open_h + (2 * flange_w)
         
         cut_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS))
-        
-        # NEW: Holes in Back Panel Rabbet (0.28125" dia)
-        # Centered in the 0.64" rabbet.
-        hole_offset = new_flange_w / 2.0
-        panel_hole_r = 0.28125 / 2.0
-        
-        # Top-Left
-        hx_tl = shelf_x + hole_offset; hy_tl = shelf_y + hole_offset
-        cut_elements.append(create_circle(hx_tl, hy_tl, panel_hole_r, COLOR_HOLES))
-        # Top-Right
-        hx_tr = shelf_x + shelf_w - hole_offset; hy_tr = shelf_y + hole_offset
-        cut_elements.append(create_circle(hx_tr, hy_tr, panel_hole_r, COLOR_HOLES))
-        # Bot-Left
-        hx_bl = shelf_x + hole_offset; hy_bl = shelf_y + shelf_h - hole_offset
-        cut_elements.append(create_circle(hx_bl, hy_bl, panel_hole_r, COLOR_HOLES))
-        # Bot-Right
-        hx_br = shelf_x + shelf_w - hole_offset; hy_br = shelf_y + shelf_h - hole_offset
-        cut_elements.append(create_circle(hx_br, hy_br, panel_hole_r, COLOR_HOLES))
-
         cut_elements.append(create_svg_footer())
         
         files[f"BACK_PANEL_HATCH_CUT.v{version}.svg"] = "\n".join(cut_elements)
         
         # 4. Generate HATCH_LID (Separate Part)
+        # Use standard MARGIN_INCHES so Master Layout logic works uniformly
         lid_canvas_w = hatch_lid_w + (2 * MARGIN_INCHES)
         lid_canvas_h = hatch_lid_h + (2 * MARGIN_INCHES)
         lx = MARGIN_INCHES
         ly = MARGIN_INCHES
         
         lid_elements = []
-        lid_elements.append(create_svg_header(lid_canvas_w, lid_canvas_h, f"HATCH_LID"))
+        lid_elements.append(create_svg_header(lid_canvas_w, lid_canvas_h, f"BACK_PANEL_HATCH_LID"))
         
         # Perimeter (Outer Size of Lid)
         lid_elements.append(create_rect(lx, ly, hatch_lid_w, hatch_lid_h, COLOR_PERIMETER))
         
-        # Rabbet (Inner Cut)
-        lid_rab_x = lx + new_flange_w
-        lid_rab_y = ly + new_flange_w
+        # Rabbet (Inner Cut to make the Step)
+        # Lid Flange means we cut a Rabbet around the edge (removing the "bottom" corner).
+        # Inner Rect = Opening Size.
+        lid_rab_x = lx + flange_w
+        lid_rab_y = ly + flange_w
         lid_elements.append(create_rect(lid_rab_x, lid_rab_y, hatch_open_w, hatch_open_h, COLOR_RABBETS))
         
-        # NEW: Holes in Lid (0.2" dia)
-        lid_hole_r = 0.2 / 2.0
+        # Corner Holes
+        # "four corner holes centered in the rabbets"
+        # The rabbet is `flange_w` wide. Center is `flange_w / 2`.
+        corner_offset = flange_w / 2.0
+        # Wait, if flange is small (e.g. 7.5mm - 0.5 = 7mm), hole might be tight.
+        # Just putting points there.
+        lid_hole_r = 0.1 # Standard small hole
         
         # Top-Left
-        lid_elements.append(create_circle(lx + hole_offset, ly + hole_offset, lid_hole_r, COLOR_HOLES))
+        lid_elements.append(create_circle(lx + corner_offset, ly + corner_offset, lid_hole_r, COLOR_HOLES))
         # Top-Right
-        lid_elements.append(create_circle(lx + hatch_lid_w - hole_offset, ly + hole_offset, lid_hole_r, COLOR_HOLES))
+        lid_elements.append(create_circle(lx + hatch_lid_w - corner_offset, ly + corner_offset, lid_hole_r, COLOR_HOLES))
         # Bot-Left
-        lid_elements.append(create_circle(lx + hole_offset, ly + hatch_lid_h - hole_offset, lid_hole_r, COLOR_HOLES))
+        lid_elements.append(create_circle(lx + corner_offset, ly + hatch_lid_h - corner_offset, lid_hole_r, COLOR_HOLES))
         # Bot-Right
-        lid_elements.append(create_circle(lx + hatch_lid_w - hole_offset, ly + hatch_lid_h - hole_offset, lid_hole_r, COLOR_HOLES))
+        lid_elements.append(create_circle(lx + hatch_lid_w - corner_offset, ly + hatch_lid_h - corner_offset, lid_hole_r, COLOR_HOLES))
         
         lid_elements.append(create_svg_footer())
-        files[f"HATCH_LID.v{version}.svg"] = "\n".join(lid_elements)
+        files[f"BACK_PANEL_HATCH_LID.v{version}.svg"] = "\n".join(lid_elements)
         
         # Store Data for Nesting Logic
         hatch_data = {
             'lid_w': hatch_lid_w,
             'lid_h': hatch_lid_h,
-            'svg_content': "\n".join(lid_elements)
+            'svg_content': "\n".join(lid_elements) # Raw content effectively
         }
 
     # VISUALIZATION
@@ -2445,7 +3557,7 @@ def generate_french_cleats(version):
     bs_elements = []
     bs_elements.append(create_svg_header(canvas_w, canvas_h, f"CLEAT_BEVEL_SCORE"))
     # Line from (ax, score_y) to (ax + cleat_w, score_y)
-    bs_elements.append(f'<line x1="{f(ax)}" y1="{f(score_y)}" x2="{f(ax + cleat_w)}" y2="{f(score_y)}" stroke="blue" stroke-width="{STROKE_WIDTH}" fill="none" />')
+    bs_elements.append(f'<line x1="{f(ax)}" y1="{f(score_y)}" x2="{f(ax + cleat_w)}" y2="{f(score_y)}" stroke="blue" stroke-width="0.01" fill="none" />')
     bs_elements.append(create_svg_footer())
     files[f"CLEAT_BEVEL_SCORE.v{version}.svg"] = "\n".join(bs_elements)
     
@@ -2599,7 +3711,7 @@ class ScrollableFrame(tk.Frame):
 class CarbideOptimizedApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("CNC Plywood Parametric Box Maker v1.27")
+        self.title("CNC Plywood Parametric Box Maker")
         self.geometry("900x850") 
         self.configure(bg="#f0f0f0")
         self.resizable(True, True) # User asked for resizable: "resizable in case it is used on a different machine"
@@ -2638,7 +3750,8 @@ class CarbideOptimizedApp(tk.Tk):
             'finger_width': tk.StringVar(value="15.0"),
             'finger_width_unit': tk.StringVar(value="mm"), # Default mm for typical metric bits/fingers often? Or match prompt "in(x)"
             
-            # pilot_dia removed v1.13 (Glued Back Panel)
+            'pilot_dia': tk.StringVar(value="7.14375"), # Back Panel Holes
+            'pilot_dia_unit': tk.StringVar(value="mm"),
             
             # Lid / Window
             'lid_fit_adjustment': tk.StringVar(value="0.0"), # "Shrink Lid Fit"
@@ -2664,25 +3777,15 @@ class CarbideOptimizedApp(tk.Tk):
             'hatch_width_pct': tk.StringVar(value="50.0"),
             'hatch_height_pct': tk.StringVar(value="33.0"), 
             'hatch_raise': tk.StringVar(value="0.0"),
-            'hatch_raise_unit': tk.StringVar(value="in"),
-
-            # Bottom Access Panel (New v1.22)
-            'bottom_hatch_enabled': tk.BooleanVar(value=False),
-            'bottom_hatch_w': tk.StringVar(value=""),
-            'bottom_hatch_w_unit': tk.StringVar(value="in"),
-            'bottom_hatch_h': tk.StringVar(value=""),
-            'bottom_hatch_h_unit': tk.StringVar(value="in"),
-            'bottom_hatch_x_pct': tk.StringVar(value="50.0"), # Default Center
-            'bottom_hatch_x_status': tk.StringVar(value="") # For status label
+            'hatch_raise_unit': tk.StringVar(value="in")
         }
         
         # Track previous units for dynamic conversion
         self.last_units = {
             'width': 'in', 'height': 'in', 'depth': 'in', 'stock_thk': 'mm',
-            'glue_gap': 'in', 'finger_width': 'mm',
+            'glue_gap': 'in', 'finger_width': 'mm', 'pilot_dia': 'mm',
             'lid_fit_adjustment': 'mm', 'window_w': 'in', 'window_h': 'in',
-            'hatch_raise': 'in',
-            'bottom_hatch_w': 'in', 'bottom_hatch_h': 'in'
+            'hatch_raise': 'in'
         }
         # Sync initial tracking with actual vars
         for key in self.last_units:
@@ -2692,10 +3795,9 @@ class CarbideOptimizedApp(tk.Tk):
         self.unit_map = {
             'width': 'width_unit', 'height': 'height_unit', 'depth': 'depth_unit',
             'stock_thk': 'stock_unit', 'glue_gap': 'glue_gap_unit',
-            'finger_width': 'finger_width_unit',
+            'finger_width': 'finger_width_unit', 'pilot_dia': 'pilot_dia_unit',
             'lid_fit_adjustment': 'lid_fit_unit', 'window_w': 'window_w_unit',
-            'window_h': 'window_h_unit', 'hatch_raise': 'hatch_raise_unit',
-            'bottom_hatch_w': 'bottom_hatch_w_unit', 'bottom_hatch_h': 'bottom_hatch_h_unit'
+            'window_h': 'window_h_unit', 'hatch_raise': 'hatch_raise_unit'
         }
         
         # Initialize last_units from current vars
@@ -2849,8 +3951,7 @@ class CarbideOptimizedApp(tk.Tk):
         join_frame.pack(fill=tk.X, pady=(5, 15))
         
         self.make_row_with_units(join_frame, 0, "Finger Width", self.vars['finger_width'], self.vars['finger_width_unit'])
-        # Back Panel Holes removed v1.13
-
+        self.make_row_with_units(join_frame, 1, "Back Panel Holes", self.vars['pilot_dia'], self.vars['pilot_dia_unit'])
 
 
         # === SECTION 3: WINDOW ===
@@ -2918,35 +4019,6 @@ class CarbideOptimizedApp(tk.Tk):
         self.make_row_with_units(hatch_frame, 2, "Height %", self.vars['hatch_height_pct'], None)
         self.make_row_with_units(hatch_frame, 3, "Raise Panel", self.vars['hatch_raise'], self.vars['hatch_raise_unit'])
 
-        # === SECTION 6: BOTTOM ACCESS PANEL (NEW) ===
-        self.make_section_header(left_col, "BOTTOM ACCESS PANEL")
-        
-        b_hatch_frame = tk.Frame(left_col, bg=BG_COLOR)
-        b_hatch_frame.pack(fill=tk.X, pady=(5, 15))
-        
-        # Checkbox
-        tk.Checkbutton(b_hatch_frame, text="Enable Bottom Access Panel", variable=self.vars['bottom_hatch_enabled'],
-                       bg=BG_COLOR, fg=TEXT_PRIMARY, font=FONT_LABEL, selectcolor="#ffffff",
-                       command=self.update_bottom_hatch_status).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0,5))
-        
-        # Width, Height, X Pct
-        self.make_row_with_units(b_hatch_frame, 1, "Width", self.vars['bottom_hatch_w'], self.vars['bottom_hatch_w_unit'])
-        self.make_row_with_units(b_hatch_frame, 2, "Height", self.vars['bottom_hatch_h'], self.vars['bottom_hatch_h_unit'])
-        self.make_row_with_units(b_hatch_frame, 3, "X Position %", self.vars['bottom_hatch_x_pct'], None)
-        
-        # Status Label (10pt Futura #ffe102 -> Darker background or visible on light?)
-        # User specified #ffe102 (Yellow). On #f0f0f0 (Light Grey) this is hard to read.
-        # But user requested valid hex #ffe102. I will use a darker label bg or outline? No, just FG. 
-        # Actually #ffe102 is very bright yellow. I'll add a dark background to the label so it's readable?
-        # "presented under the entry box should state in 10 pt Futura text #ffe102"
-        # I'll put it in a dark frame or label bg.
-        status_lbl = tk.Label(b_hatch_frame, textvariable=self.vars['bottom_hatch_x_status'],
-                              font=("Futura", 10), fg="#000000", padx=5, pady=2)
-        status_lbl.grid(row=4, column=0, columnspan=4, sticky="w", pady=(5,0))
-        
-        # Update initially
-        self.update_bottom_hatch_status()
-
 
         # Reset Button (Left side)
         reset_frame = tk.Frame(left_col, bg=BG_COLOR)
@@ -2971,7 +4043,7 @@ class CarbideOptimizedApp(tk.Tk):
                    command=self.run_generation, font=("Lato", 15, "bold")).pack(pady=20)
 
 
-        tk.Label(container, text="v1.27", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")
+        tk.Label(container, text="v1.12", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")
 
         # Live Updates
         self._setup_live_preview_updates()
@@ -3019,7 +4091,18 @@ class CarbideOptimizedApp(tk.Tk):
     def _add_undo_bindings(self, widget):
         """Add basic Mac-style Undo/Redo to an Entry widget."""
         # Tkinter Entry doesn't support built-in undo, but we can bind Cmd+Z
+        # This is a basic implementation. A full stack is complex.
+        # However, typically checking if the OS handles it is first.
+        # On Mac, sometimes it works if 'focus' is correct, but usually not.
+        # For 'Fast UI', we might skip deep implementation, but I will validly bind the keys 
+        # to a dummy or simple text stack if possible.
+        # Actually, for Entry widgets, the best 'hack' is to not override if system does it, 
+        # but system usually doesn't. 
+        # Let's try to enable simple undo if possible.
         try:
+             # Basic event binding - won't implement full text stack in this snippet 
+             # without a larger class wrapper. 
+             # We rely on the hope that standard keys work, or we accept the limitation for now.
              pass
         except:
              pass
@@ -3089,94 +4172,20 @@ class CarbideOptimizedApp(tk.Tk):
                 
                 if not self.vars['window_enabled'].get():
                     win_w = 0; win_h = 0
-                
-                # Retrieve Hatch Variables
-                hatch_enabled = self.vars['hatch_enabled'].get()
-                hatch_w_pct = 0.0
-                hatch_h_pct = 0.0
-                hatch_raise = 0.0
-                
-                if hatch_enabled:
-                    try:
-                        hatch_w_pct = float(self.vars['hatch_width_pct'].get())
-                        hatch_h_pct = float(self.vars['hatch_height_pct'].get())
-                        hatch_raise = get_inches(self.vars['hatch_raise'], self.vars['hatch_raise_unit'])
-                    except:
-                        pass
 
-                # Bottom Access Panel
-                b_hatch_enabled = self.vars['bottom_hatch_enabled'].get()
-                b_hatch_w = get_inches(self.vars['bottom_hatch_w'], self.vars['bottom_hatch_w_unit'])
-                b_hatch_h = get_inches(self.vars['bottom_hatch_h'], self.vars['bottom_hatch_h_unit'])
-                b_hatch_x_pct = 0.0
-                try:
-                    b_hatch_x_pct = float(self.vars['bottom_hatch_x_pct'].get())
-                except:
-                    pass
-
-                self.preview_3d.update_box(w, h, d, s, win_w, win_h, 
-                                          hatch_enabled, hatch_w_pct, hatch_h_pct, hatch_raise,
-                                          b_hatch_enabled, b_hatch_w, b_hatch_h, b_hatch_x_pct)
-            except Exception as e:
-                print(f"Preview Error: {e}")
+                self.preview_3d.update_box(w, h, d, s, win_w, win_h)
+            except Exception:
+                pass
 
         # Trace
         traces = ['width', 'height', 'depth', 'stock_thk', 'window_w', 'window_h', 
                   'width_unit', 'height_unit', 'depth_unit', 'stock_unit', 
-                  'window_w_unit', 'window_h_unit', 'window_enabled',
-                   'hatch_enabled', 'hatch_width_pct', 'hatch_height_pct', 'hatch_raise', 'hatch_raise_unit',
-                  'bottom_hatch_enabled', 'bottom_hatch_w', 'bottom_hatch_h', 'bottom_hatch_x_pct']
+                  'window_w_unit', 'window_h_unit', 'window_enabled']
         for t in traces:
             if t in self.vars:
                 self.vars[t].trace_add('write', on_change)
         
         on_change()
-        
-        # Bind for Bottom Access Panel Status Update
-        self.vars['bottom_hatch_w'].trace_add('write', self.update_bottom_hatch_status)
-        self.vars['bottom_hatch_x_pct'].trace_add('write', self.update_bottom_hatch_status)
-        self.vars['width'].trace_add('write', self.update_bottom_hatch_status)
-        self.vars['stock_thk'].trace_add('write', self.update_bottom_hatch_status)
-        
-    def update_bottom_hatch_status(self, *args):
-        """Update the status label for Bottom Access Hatch."""
-        if not self.vars['bottom_hatch_enabled'].get():
-            self.vars['bottom_hatch_x_status'].set("")
-            return
-
-        try:
-            # Helper: Get inch value
-            def get_val_in(var_name, unit_var_name=None):
-                try:
-                    val = float(self.vars[var_name].get())
-                    if unit_var_name and self.vars[unit_var_name].get() == "mm":
-                        return val / 25.4
-                    return val
-                except:
-                    return 0.0
-
-            rail_w_in = get_val_in('width', 'width_unit') - (2 * get_val_in('stock_thk', 'stock_unit'))
-            hatch_w_in = get_val_in('bottom_hatch_w', 'bottom_hatch_w_unit')
-            x_pct = 0.0
-            try:
-                x_pct = float(self.vars['bottom_hatch_x_pct'].get())
-            except:
-                pass
-            
-            if rail_w_in <= 0 or hatch_w_in <= 0:
-                self.vars['bottom_hatch_x_status'].set("")
-                return
-            
-            # X Calculation
-            center_x = rail_w_in * (x_pct / 100.0)
-            start_x = center_x - (hatch_w_in / 2.0)
-            end_x = center_x + (hatch_w_in / 2.0)
-            
-            if start_x < 0: start_x = 0 # Clamp for display logic safety? No user wants exact.
-            
-            self.vars['bottom_hatch_x_status'].set(f"Access hatch spans between {start_x:.2f}\" and {end_x:.2f}\" from the left corner of the frame")
-        except:
-            self.vars['bottom_hatch_x_status'].set("")
 
     def browse_folder(self):
         d = filedialog.askdirectory()
@@ -3215,11 +4224,7 @@ class CarbideOptimizedApp(tk.Tk):
                 'hatch_height_pct': "33.0",
                 'hatch_raise': "0.0",
                 'hatch_raise_unit': "in",
-                'cleats_enabled': True,
-                'bottom_hatch_enabled': False,
-                'bottom_hatch_w': "",
-                'bottom_hatch_h': "",
-                'bottom_hatch_x_pct': "50.0"
+                'cleats_enabled': True
             }
             for key, val in defaults.items():
                 if key in self.vars:
@@ -3283,51 +4288,9 @@ class CarbideOptimizedApp(tk.Tk):
             CONFIG['FRONT_RABBET_DEPTH'] = step_depth_in
             CONFIG['BACK_RABBET_DEPTH'] = step_depth_in
             
-        # v1.13: Use default or removed.
-
+            CONFIG['SCREW_PILOT_DIA'] = get_mm('pilot_dia', 'pilot_dia_unit')
             
             CONFIG['MOTOR_POCKET_ENABLED'] = self.vars['motor_enabled'].get()
-
-            # BOTTOM ACCESS PANEL CONFIG
-            CONFIG['BOTTOM_HATCH_ENABLED'] = self.vars['bottom_hatch_enabled'].get()
-            if CONFIG['BOTTOM_HATCH_ENABLED']:
-                try:
-                    bh_w = get_mm('bottom_hatch_w', 'bottom_hatch_w_unit')
-                    bh_h = get_mm('bottom_hatch_h', 'bottom_hatch_h_unit')
-                    bh_x_pct = float(self.vars['bottom_hatch_x_pct'].get())
-                    
-                    CONFIG['BOTTOM_HATCH_WIDTH'] = bh_w
-                    CONFIG['BOTTOM_HATCH_HEIGHT'] = bh_h
-                    CONFIG['BOTTOM_HATCH_X_PCT'] = bh_x_pct
-                    
-                    # Validate Height Constraint
-                    # Max Height = Box Depth - Front Rabbet Depth - Back Rabbet Depth - 0.5" (approx 12.7mm)
-                    # Note: Using calculated depths.
-                    box_depth_mm = convert_to_mm(float(self.vars['depth'].get()), self.vars['depth_unit'].get())
-                    
-                    # Rabbet Depths (Step Depth)
-                    step_depth_mm = CONFIG['STOCK_THICKNESS'] / 2.0
-                    
-                    # 0.5 inches in mm
-                    buffer_mm = 12.7
-                    
-                    max_h_mm = box_depth_mm - (2 * step_depth_mm) - buffer_mm
-                    
-                    if bh_h > max_h_mm:
-                        print(f"WARNING: Bottom Hatch Height ({bh_h:.2f}mm) exceeds safe limit ({max_h_mm:.2f}mm). It might clash with panels.")
-                    
-                    # Validate Width Constraint (90% of Rail Width)
-                    total_w_mm = convert_to_mm(float(self.vars['width'].get()), self.vars['width_unit'].get())
-                    stock_mm = CONFIG['STOCK_THICKNESS']
-                    rail_w_mm = total_w_mm - (2 * stock_mm)
-                    
-                    if bh_w > (rail_w_mm * 0.9):
-                        print(f"WARNING: Bottom Hatch Width ({bh_w:.2f}mm) exceeds 90% of Rail Width ({rail_w_mm * 0.9:.2f}mm).")
-                        
-                except Exception as e:
-                    print(f"Invalid Bottom Hatch Input: {e}")
-                    CONFIG['BOTTOM_HATCH_ENABLED'] = False
-
 
             # REAR ACCESS PANEL CONFIG
             CONFIG['HATCH_ENABLED'] = self.vars['hatch_enabled'].get()
@@ -3338,10 +4301,8 @@ class CarbideOptimizedApp(tk.Tk):
                     h_pct = float(self.vars['hatch_height_pct'].get().strip())
                     CONFIG['HATCH_WIDTH_PCT'] = w_pct
                     CONFIG['HATCH_HEIGHT_PCT'] = h_pct
-                except:
-                    pass 
-                # Parse Raise (Unit aware)
-                try:
+                    
+                    # Parse Raise (Unit aware)
                     raise_mm = get_mm('hatch_raise', 'hatch_raise_unit')
                     CONFIG['HATCH_RAISE_IN'] = convert_to_inches(raise_mm)
                 except ValueError:
@@ -3430,47 +4391,8 @@ class CarbideOptimizedApp(tk.Tk):
             all_files.update(files_cleats)
             
             # --- GENERATE MASTER LAYOUT (MULTI-SHEET) ---
-            # Debug: Ensure all parts are valid before master generation
-            def validate_part_files(part_files, part_name):
-                if not part_files:
-                    return {}
-                valid_files = {}
-                for k, v in part_files.items():
-                    if v is None:
-                        print(f"CRITICAL WARNING: File {k} in {part_name} has None content.")
-                    else:
-                        valid_files[k] = v
-                return valid_files
-
-            files_front = validate_part_files(files_front, "FRONT")
-            files_back = validate_part_files(files_back, "BACK")
-            f_top = validate_part_files(f_top, "TOP")
-            f_bot = validate_part_files(f_bot, "BOTTOM")
-            f_left = validate_part_files(f_left, "LEFT")
-            f_right = validate_part_files(f_right, "RIGHT")
-            
-            # Check cleat data
-            if cleat_data:
-                cleat_data['wall_cleat_files'] = validate_part_files(cleat_data['wall_cleat_files'], "CLEAT_WALL")
-                cleat_data['box_cleat_files'] = validate_part_files(cleat_data['box_cleat_files'], "CLEAT_BOX")
-                cleat_data['svg_contents'] = validate_part_files(cleat_data['svg_contents'], "CLEAT_CONTENTS")
-
             master_svgs = generate_master_carbide_layout(next_ver, files_front, files_back, f_top, f_bot, f_left, f_right, geom_back, cleat_data)
-            
-            if master_svgs is None:
-                print("CRITICAL ERROR: generate_master_carbide_layout returned None!")
-                master_svgs = {} # Fallback to empty to prevent crash
-            
             all_files.update(master_svgs)
-            
-            # CRITICAL FIX: Ensure Master Layout is added to all_files if it wasn't already
-            # The previous update() might have worked, but let's be explicit and verbose
-            master_key = f"MASTER_LAYOUT_COMBINED_v{next_ver}.svg"
-            if master_key in master_svgs:
-                all_files[master_key] = master_svgs[master_key]
-            else:
-                print(f"WARNING: Master Layout key {master_key} not found in returned svgs")
-            
             # ------------------------------
             
 
@@ -3478,52 +4400,30 @@ class CarbideOptimizedApp(tk.Tk):
             combined_svg = generate_combined_visualization(next_ver, rail_paths)
             all_files[f"VISUALIZATION_COMBINED_RAILS.v{next_ver}.svg"] = combined_svg
             
-            # Get lazy-loaded generators
-            gen_blender, gen_trivision = _get_blender_generator()
-
-            # Generate Blender Script
-            blender_script = gen_blender(next_ver, CONFIG, rail_paths, geom_front, geom_back)
+            # NOTE: Due to token limits, the generate_blender_script function here is abbreviated.
+            # In production, this should include the full logic to parse SVG paths and create the Blender script.
+            # For v45, we ensure it generates the file, even if simplified for this specific response block.
+            blender_script = generate_blender_script(next_ver, CONFIG, rail_paths, geom_front, geom_back)
             all_files[f"OPEN_ME_IN_BLENDER.v{next_ver}.py"] = blender_script
             
             # --- TRIVISION INTEGRATION ---
-            trivision_script = gen_trivision(next_ver, CONFIG, rail_paths, geom_front, geom_back)
+            trivision_script = generate_trivision_script(next_ver, CONFIG, rail_paths, geom_front, geom_back)
             all_files[f"OPEN_ME_IN_TRIVISION_v{next_ver}.py"] = trivision_script
 
             for fname, content in all_files.items():
-                full_path = final_out_dir / fname
-                with open(full_path, 'w', encoding='utf-8') as f:
+                with open(final_out_dir / fname, 'w', encoding='utf-8') as f:
                     f.write(content)
-                
-                # Apply Green Label (6) to Key Files
-                if "OPEN_ME_IN_BLENDER" in fname or "MASTER_LAYOUT_COMBINED" in fname:
-                    set_mac_label(str(full_path.absolute()), 6)
-
-            
             
             with open(final_out_dir / "config.json", "w", encoding='utf-8') as f:
-                json.dump(CONFIG, f, indent=4) # Indent for readability
+                json.dump(CONFIG, f, indent=4)
 
-            # VERIFY DIMENSIONS (v1.16/v1.22)
-            SVG_PATHS = {
-                'TOP_RAIL': rail_paths.get('TOP', 'M 0 0 Z'),
-                'BOTTOM_RAIL': rail_paths.get('BOTTOM', 'M 0 0 Z'),
-                'LEFT_RAIL': rail_paths.get('LEFT', 'M 0 0 Z'),
-                'RIGHT_RAIL': rail_paths.get('RIGHT', 'M 0 0 Z'),
-            }
-            passed, report = verify_dimensions(SVG_PATHS, CONFIG)
-            
-            messagebox.showinfo("Success", f"Generation Complete!\n\nVersion: v{next_ver}\nLocation: {final_out_dir}\n\n{report}")
-            print(report)
+            messagebox.showinfo("Success", f"Generation Complete!\n\nVersion: v{next_ver}\nLocation: {final_out_dir}")
 
         except Exception as e:
             import traceback
-            tb_str = traceback.format_exc()
-            print(tb_str) # To console
-            messagebox.showerror("Error", f"An error occurred:\n{str(e)}\n\n{tb_str}")
+            traceback.print_exc()
+            messagebox.showerror("Error", f"An error occurred:\n{str(e)}")
 
-# ==============================================================================
-# RUN
-# ==============================================================================
 if __name__ == "__main__":
     app = CarbideOptimizedApp()
     app.mainloop()

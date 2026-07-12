@@ -5,7 +5,7 @@ import re
 import math
 
 # Path to the v50 generator
-GEN_PATH = "/Users/joelsilverman/Desktop/2026 Files/26-005 Gemini-created CNC Box Creator/Gemini McTell CNC Plans/CNC GENERATOR - CARBIDE-OPTIMIZED v50.py"
+GEN_PATH = "/Users/joelsilverman/Desktop/2026 Files/26-005 CNC Box Creator/CNC Plans/CNC GENERATOR - CARBIDE-OPTIMIZED v50.py"
 
 def load_generator():
     spec = importlib.util.spec_from_file_location("cnc_gen", GEN_PATH)

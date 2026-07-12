@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.27
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.24
 # ========================================
-# PRODUCTION RELEASE v1.27
+# PRODUCTION RELEASE v1.24
 #
 # Key Changes:
 # - Extracted Blender/TriVision generation to separate module (blender_generator.py).
@@ -394,7 +394,7 @@ COLOR_POCKETS = "#8fea00"    # Green - shallow pockets (motors)
 COLOR_RABBETS = "#e09500"    # Orange - rabbet channels
 COLOR_WINDOW = "#af00af"     # Purple - window cutout
 
-STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
+STROKE_WIDTH = "0.01"  # inches - thin stroke for CNC precision
 
 
 
@@ -646,8 +646,7 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
                 # PROUD FINGER (UP)
                 f_start = x_start + (fit_tol / 2.0)
                 f_end = x_end - (fit_tol / 2.0)
-                # FIX: Decouple Length from Tolerance (Flush Fit)
-                f_height = (stock_thk + protrusion)
+                f_height = (stock_thk + protrusion) - fit_tol
                 
                 # Snap Check? Usually Top/Bottom fingers are not the corner issue, 
                 # but let's be consistent if needed. 
@@ -690,8 +689,7 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
                 if i == count - 1:
                     f_end = bottom_edge_y
                     
-                # FIX: Decouple Length from Tolerance (Flush Fit)
-                f_len = (stock_thk + protrusion)
+                f_len = (stock_thk + protrusion) - fit_tol
                 path_cmds.append(f"L {f(rx)} {f(f_start)}")
                 path_cmds.append(f"L {f(rx + f_len)} {f(f_start)}")
                 path_cmds.append(f"L {f(rx + f_len)} {f(f_end)}")
@@ -732,8 +730,7 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
             if bottom_type == 'fingers' and is_active:
                 f_start = x_start - (fit_tol / 2.0)
                 f_end = x_end + (fit_tol / 2.0)
-                # FIX: Decouple Length from Tolerance (Flush Fit)
-                f_height = (stock_thk + protrusion)
+                f_height = (stock_thk + protrusion) - fit_tol
                 path_cmds.append(f"L {f(f_start)} {f(by)}")
                 path_cmds.append(f"L {f(f_start)} {f(by + f_height)}")
                 path_cmds.append(f"L {f(f_end)} {f(by + f_height)}")
@@ -770,8 +767,7 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
                 if i == count - 1:
                     f_end = top_edge_y
                     
-                # FIX: Decouple Length from Tolerance (Flush Fit)
-                f_len = (stock_thk + protrusion)
+                f_len = (stock_thk + protrusion) - fit_tol
                 path_cmds.append(f"L {f(lx)} {f(f_start)}")
                 path_cmds.append(f"L {f(lx - f_len)} {f(f_start)}")
                 path_cmds.append(f"L {f(lx - f_len)} {f(f_end)}")
@@ -1096,13 +1092,7 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
             # Y Position: Centered in Depth (rail_h_in = Box Depth)
             center_y = rail_h_in / 2.0
             
-            # Correction v1.27: Add Stock Thickness to X Start
-            # ax is the Left Edge of the piece (Start of Fingers).
-            # The "Internal Width" (rail_w_in) starts after the left stock/fingers.
-            # So we must add st_in to shift the internal center correctly.
-            st_in = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-            bx = ax + st_in + center_x - (bh_w_in / 2.0)
-            
+            bx = ax + center_x - (bh_w_in / 2.0)
             by = ay + center_y - (bh_h_in / 2.0)
             
             # Hatch Geometry
@@ -1148,61 +1138,23 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
             #   cut_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS))
             # And `get_layer_type_v11` mapped `HATCH_CUT` to `CONTOUR (Inside)`.
             # This is ambiguous for CAM. Usually user separates them.
-            # ------------------------------------------------------------------
-            # BOTTOM HATCH LOGIC (v1.27 SPEC UPDATE)
-            # ------------------------------------------------------------------
-            # 1. Flange Width: Fixed 0.6"
-            # 2. Rail Holes: 0.28125" (9/32") Dia -> 0.140625" Radius
-            # 3. Lid Holes: 0.2" Dia -> 0.1" Radius
-            # 4. Placement: Inset 1/4" (0.25") from edge to hole EDGE.
-            #    Center Offset = 0.25" + Rail_Hole_Radius.
-            # ------------------------------------------------------------------
+            # But the user logic "addition of a female square rabbet... Inside/Left Contour Path"
+            # Maybe the user implies just ONE cut?
+            # "female square rabbet... on the bottom rail... to be an Inside/Left Contour Path".
+            # This implies cutting the hole with a step? You can't do a step with one contour path unless you seek a specific depth.
+            # If he says "Rabbet", he usually means "Pocket" or "Step".
+            # Let's provide BOTH vectors in the file (Hole and Shelf) so they can choose.
             
-            FLANGE_W = 0.6
-            RAIL_HOLE_DIA = 0.28125
-            LID_HOLE_DIA = 0.2
-            CLEARANCE = 0.25
-            
-            rail_r = RAIL_HOLE_DIA / 2.0
-            lid_r = LID_HOLE_DIA / 2.0
-            
-            # Offset from Corner of the SHELF/LID to the Center of the Hole
-            # "inset 1/4" from each edge" usually means from the solid material edge (corner of flange)
-            # to the start of the hole.
-            center_offset = CLEARANCE + rail_r
-            
-            # Shelf / Pocket Dimensions
-            # Flange adds to the Opening Size
-            shelf_x = bx - FLANGE_W
-            shelf_y = by - FLANGE_W
-            shelf_w = bh_w_in + (2 * FLANGE_W)
-            shelf_h = bh_h_in + (2 * FLANGE_W)
-            
-            hatch_elements = []
-            hatch_elements.append(create_svg_header(canvas_w, canvas_h, f"{rail_name}_HATCH_CUT"))
-            
-            # 1. Through Cut (Opening) - User Spec "Bottom Rail Hatch Rabbet Height must be ((Material Thickness /2) - Glue Gap)" implies Depth, but for 2D SVG we just draw vectors.
-            hatch_elements.append(create_rect(bx, by, bh_w_in, bh_h_in, COLOR_PERIMETER)) # Opening
-            
-            # 2. Shelf Pocket
-            hatch_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS)) # Shelf Perimeter
-            
-            # 3. Mating Holes (Rail Side) - Larger Holes
-            # Top-Left
-            hatch_elements.append(create_circle(shelf_x + center_offset, shelf_y + center_offset, rail_r, COLOR_HOLES))
-            # Top-Right
-            hatch_elements.append(create_circle(shelf_x + shelf_w - center_offset, shelf_y + center_offset, rail_r, COLOR_HOLES))
-            # Bottom-Left
-            hatch_elements.append(create_circle(shelf_x + center_offset, shelf_y + shelf_h - center_offset, rail_r, COLOR_HOLES))
-            # Bottom-Right
-            hatch_elements.append(create_circle(shelf_x + shelf_w - center_offset, shelf_y + shelf_h - center_offset, rail_r, COLOR_HOLES))
-            
+            hatch_elements.append(create_rect(bx, by, bh_w_in, bh_h_in, COLOR_PERIMETER)) # Through
+            hatch_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS)) # Shelf
             hatch_elements.append(create_svg_footer())
             files[f"{rail_name}_HATCH_CUT.v{version}.svg"] = "\n".join(hatch_elements)
             
-            # ------------------------------------------------------------------
-            # LID GENERATION
-            # ------------------------------------------------------------------
+            # 2. LID (Separate Part)
+            # Lid Size = Shelf Size (minus fit_tolerance? No, usually Lid matches Shelf Outer, Plug matches Hole).
+            # Lid Outer = Shelf Outer.
+            # Lid Plug (Inner Step) = Opening Size (minus fit adjustment).
+            
             lid_w = shelf_w
             lid_h = shelf_h
             
@@ -1215,87 +1167,22 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
             lid_elements = []
             lid_elements.append(create_svg_header(l_can_w, l_can_h, f"{rail_name}_HATCH_LID"))
             
-            # Perimeter (Matches Shelf Outer)
+            # Perimeter
             lid_elements.append(create_rect(lx, ly, lid_w, lid_h, COLOR_PERIMETER))
             
-            # Rabbet/Step (Matches Opening Size)
-            # Plug is centered
-            lr_x = lx + FLANGE_W
-            lr_y = ly + FLANGE_W
+            # Rabbet (Plug)
+            # Inner = Opening Size
+            lr_x = lx + flange_w
+            lr_y = ly + flange_w
             lid_elements.append(create_rect(lr_x, lr_y, bh_w_in, bh_h_in, COLOR_RABBETS))
             
-            # Holes (Matches Rail Centers, but Smaller Diameter)
-            # Use same center_offset relative to Lid Corner (lx, ly)
-            lid_elements.append(create_circle(lx + center_offset, ly + center_offset, lid_r, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + lid_w - center_offset, ly + center_offset, lid_r, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + center_offset, ly + lid_h - center_offset, lid_r, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + lid_w - center_offset, ly + lid_h - center_offset, lid_r, COLOR_HOLES))
-            
-            # ------------------------------------------------------------------
-            # NEMA 17 MOTOR FEATURES (Centered on Lid)
-            # ------------------------------------------------------------------
-            # Specs:
-            # Frame: 42.5mm x 42.5mm (w/ clearance)
-            # Mount Pattern: 31mm x 31mm
-            # Mount Holes: 3.5mm (M3 clearance) -> Through Holes
-            # Corner Radius: ~4mm
-            # Wiring Channel: 0.5" x 0.5"
-            
-            nema_body_in = convert_to_inches(42.5)
-            nema_mount_in = convert_to_inches(31.0)
-            nema_hole_r_in = convert_to_inches(3.5 / 2.0)
-            corner_r_in = convert_to_inches(4.0) # Rounded corners
-            
-            wire_w_in = 0.5
-            wire_l_in = 0.5
-            
-            # Lid Center
-            cx = lx + (lid_w / 2.0)
-            cy = ly + (lid_h / 2.0)
-            
-            # 1. Body Pocket + Wiring Channel (Unified Path)
-            # Coordinate Calculations
-            m_left = cx - nema_body_in/2
-            m_right = cx + nema_body_in/2
-            m_top = cy - nema_body_in/2
-            m_bot = cy + nema_body_in/2
-            
-            c_left = cx - wire_w_in/2
-            c_right = cx + wire_w_in/2
-            c_top = m_top - wire_l_in
-            
-            # Path Points (Clockwise, Start at Channel TL)
-            # Using f() helper which is available globally
-            
-            path_d = (
-                f"M {f(c_left)} {f(c_top)} " # Start Chan TL
-                f"L {f(c_right)} {f(c_top)} " # Chan TR
-                f"L {f(c_right)} {f(m_top)} " # Chan BR / Motor Intersection
-                f"L {f(m_right - corner_r_in)} {f(m_top)} " # Motor Top Edge to Arc Start
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_right)} {f(m_top + corner_r_in)} " # TR Arc
-                f"L {f(m_right)} {f(m_bot - corner_r_in)} " # Right Edge
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_right - corner_r_in)} {f(m_bot)} " # BR Arc
-                f"L {f(m_left + corner_r_in)} {f(m_bot)} " # Bottom Edge
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_left)} {f(m_bot - corner_r_in)} " # BL Arc
-                f"L {f(m_left)} {f(m_top + corner_r_in)} " # Left Edge
-                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_left + corner_r_in)} {f(m_top)} " # TL Arc
-                f"L {f(c_left)} {f(m_top)} " # Motor Top to Chan BL Intersection
-                f"Z" # Close path
-            )
-            
-            lid_elements.append(f'<path d="{path_d}" fill="none" stroke="{COLOR_POCKETS}" stroke-width="{STROKE_WIDTH}"/>')
-            
-            # 2. Pilot Hole REMOVED as per user request
-            
-            # 3. Mounting Holes (Through/Holes)
-            # 31mm Pattern
-            m_off = nema_mount_in / 2.0
-            
-            # If user wants them as "Holes" (Blue layer for drilling/pecking):
-            lid_elements.append(create_circle(cx - m_off, cy - m_off, nema_hole_r_in, COLOR_HOLES))
-            lid_elements.append(create_circle(cx + m_off, cy - m_off, nema_hole_r_in, COLOR_HOLES))
-            lid_elements.append(create_circle(cx - m_off, cy + m_off, nema_hole_r_in, COLOR_HOLES))
-            lid_elements.append(create_circle(cx + m_off, cy + m_off, nema_hole_r_in, COLOR_HOLES))
+            # Holes (4 corners)
+            hr = 0.1
+            coff = flange_w / 2.0
+            lid_elements.append(create_circle(lx + coff, ly + coff, hr, COLOR_HOLES))
+            lid_elements.append(create_circle(lx + lid_w - coff, ly + coff, hr, COLOR_HOLES))
+            lid_elements.append(create_circle(lx + coff, ly + lid_h - coff, hr, COLOR_HOLES))
+            lid_elements.append(create_circle(lx + lid_w - coff, ly + lid_h - coff, hr, COLOR_HOLES))
             
             lid_elements.append(create_svg_footer())
             
@@ -1819,69 +1706,27 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
                 return None, None
 
             # Render Part Files
-            # Buffer for combining paths by Type
-            buffered_paths = {
-                "OUTSIDE CUTS": {'d': [], 'color': "#ff00ff"},
-                "HOLE": {'d': [], 'color': "#00ffff"},
-                "RABBET": {'d': [], 'color': "#00ff00"},
-                "INSIDE WINDOW": {'d': [], 'color': "#ff0000"},
-                "SCORE": {'d': [], 'color': "#ffe500"},
-                "BOTTOM ACCESS RABBET": {'d': [], 'color': "#00ff00"},
-                "BOTTOM ACCESS CUT": {'d': [], 'color': "#ff0000"} 
-            }
-
-            # Helper to extract 'd' from any shape tag
-            def get_d_from_tag(tag_line):
-                # 1. Try Path
-                d_match = re.search(r'd="([^"]*)"', tag_line)
-                if d_match: return d_match.group(1)
-                
-                # 2. Try Rect
-                if "<rect" in tag_line:
-                    x = float(re.search(r'x="([^"]*)"', tag_line).group(1))
-                    y = float(re.search(r'y="([^"]*)"', tag_line).group(1))
-                    w = float(re.search(r'width="([^"]*)"', tag_line).group(1))
-                    h = float(re.search(r'height="([^"]*)"', tag_line).group(1))
-                    return f"M {x} {y} h {w} v {h} h -{w} z"
-                
-                # 3. Try Circle
-                if "<circle" in tag_line:
-                    cx = float(re.search(r'cx="([^"]*)"', tag_line).group(1))
-                    cy = float(re.search(r'cy="([^"]*)"', tag_line).group(1))
-                    r = float(re.search(r'r="([^"]*)"', tag_line).group(1))
-                    # Two arcs to make a circle
-                    return f"M {cx-r} {cy} a {r} {r} 0 1 0 {2*r} 0 a {r} {r} 0 1 0 -{2*r} 0"
-                
-                # 4. Try Line
-                if "<line" in tag_line:
-                    x1 = float(re.search(r'x1="([^"]*)"', tag_line).group(1))
-                    y1 = float(re.search(r'y1="([^"]*)"', tag_line).group(1))
-                    x2 = float(re.search(r'x2="([^"]*)"', tag_line).group(1))
-                    y2 = float(re.search(r'y2="([^"]*)"', tag_line).group(1))
-                    return f"M {x1} {y1} L {x2} {y2}"
-                    
-                return None
-
             for fname, content in files_to_render.items():
                 # Debug Check
                 if content is None:
                     print(f"WARNING: Content for {fname} in part {part['id']} is None")
                     continue
 
-                if isinstance(content, str) and cleat_data and content in cleat_data.get('svg_contents', {}):
-                    content = cleat_data['svg_contents'][content]
+                if isinstance(content, str) and fname not in part['files']:
+                     if cleat_data and content in cleat_data['svg_contents']:
+                             content = cleat_data['svg_contents'][content]
                 
                 if "VISUALIZATION" in fname: continue
                 l_code, friendly = get_layer_type_v11(fname)
                 if not l_code: continue
                 
-                # MAPPING FOR USER REQUESTED ELEMENT NAMES
-                element_base_name = "ELEMENT"
-                if friendly == 'CONTOUR (Outside)': element_base_name = "OUTSIDE CUTS"
-                elif friendly == 'HOLES (Inside)': element_base_name = "HOLE"
-                elif friendly == 'POCKET': element_base_name = "RABBET"
-                elif friendly == 'CONTOUR (Inside)': element_base_name = "INSIDE WINDOW"
-                elif friendly == 'NO OFFSET (Score)': element_base_name = "SCORE"
+                # Color Mapping (High Saturation)
+                viz_color = "#ff8d00" # Orange (Default)
+                if friendly == 'CONTOUR (Outside)': viz_color = "#ff00ff" # Magenta
+                elif friendly == 'HOLES (Inside)': viz_color = "#00ffff" # Cyan
+                elif friendly == 'POCKET': viz_color = "#00ff00" # Green
+                elif friendly == 'CONTOUR (Inside)': viz_color = "#ff0000" # Red
+                elif friendly == 'NO OFFSET (Score)': viz_color = "#ffe500" # Yellow
 
                 # Flatten & Apply Styles
                 try:
@@ -1894,55 +1739,16 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
                     print(f"Error: flatten_content_elements returned None for {fname}")
                     continue
 
-                for i, line in enumerate(raw_lines):
-                    d_attr = get_d_from_tag(line)
-                    if not d_attr: continue
+                for line in raw_lines:
+                    # Strip existing style
+                    line = re.sub(r'\s+fill="[^"]*"', '', line)
+                    line = re.sub(r'\s+stroke="[^"]*"', '', line)
+                    line = re.sub(r'\s+stroke-width="[^"]*"', '', line)
                     
-                    # Special Case: Bottom Access Panel Logic
-                    if "BOTTOM_HATCH_CUT" in fname: # Actually RAIL_NAME_HATCH_CUT
-                         # Index 0 = Inner (Through Cut) -> BOTTOM ACCESS CUT
-                         # Index 1 = Outer (Shelf) -> BOTTOM ACCESS RABBET
-                         
-                         if i == 0:
-                             # Inner -> ACCESS PANEL CUT
-                             buffered_paths["BOTTOM ACCESS CUT"]['d'].append(d_attr)
-                             # Inner -> ACCESS RABBET (for double line rabbet visual if desired? User said "BOTTOM ACCESS RABBET")
-                             # User said "Layer Bottom: BOTTOM INSIDE WINDOW should be called BOTTOM ACCESS RABBET"
-                             # And "BOTTOM ACCESS CUT... single rectangle... no inner line to act as a rabbet"
-                             # Wait. A Rabbet usually IS two lines (Outer and Inner).
-                             # If "BOTTOM ACCESS CUT" is just the Inner Rectangle (Through Cut).
-                             # And "BOTTOM ACCESS RABBET" replaces the old Window/Rabbet.
-                             # If the user wants the Rabbet to have "Two Lines", then we should add BOTH Index 0 and Index 1 to "BOTTOM ACCESS RABBET".
-                             # But "BOTTOM ACCESS CUT" is separate.
-                             
-                             buffered_paths["BOTTOM ACCESS RABBET"]['d'].append(d_attr) # Inner line of Rabbet
-                             
-                         elif i == 1:
-                             # Outer -> BOTTOM ACCESS RABBET
-                             buffered_paths["BOTTOM ACCESS RABBET"]['d'].append(d_attr) # Outer line of Rabbet
-                    
-                    # Logic for standard categorization
-                    elif element_base_name in buffered_paths:
-                         buffered_paths[element_base_name]['d'].append(d_attr)
-
-            # Flush Buffer to SVG Lines
-            for name, data in buffered_paths.items():
-                if not data['d']: continue
-                
-                combined_d = " ".join(data['d'])
-                color = data['color']
-                
-                # ID generation
-                safe_name = name.replace(" ", "_")
-                obj_id = f"{part['id']}_{safe_name}"
-                
-                style = f'fill="none" stroke="{color}" stroke-width="{STROKE_WIDTH}"'
-                # Create a single path element
-                line = f'<path d="{combined_d}" {style} transform="{tf}" id="{obj_id}" data-name="{name}" />'
-                lines.append("    " + line)
-
-            # OLD RENDER LOOP (REPLACED)
-            # for fname, content in files_to_render.items(): ...
+                    # Inject new style
+                    style = f' fill="none" stroke="{viz_color}" stroke-width="5pt"'
+                    line = line.replace("/>", f"{style} />")
+                    lines.append(line)
 
             # Render Nested Hatch
             if part.get('nested_hatch'):
@@ -1957,25 +1763,13 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
                 
                 viz_color = "#ff00ff" # Magenta for Hatch Lid (Outside Cut)
                 
-                # Naming for Hatch
-                element_base_name = "OUTSIDE CUTS"
-
                 raw_lines = flatten_content_elements(h_data['svg_content'], h_tf)
-                element_counts = {}
                 for line in raw_lines:
                     line = re.sub(r'\s+fill="[^"]*"', '', line)
                     line = re.sub(r'\s+stroke="[^"]*"', '', line)
                     line = re.sub(r'\s+stroke-width="[^"]*"', '', line)
-                    line = re.sub(r'\s+id="[^"]*"', '', line)
-
-                    current_count = element_counts.get(element_base_name, 0) + 1
-                    element_counts[element_base_name] = current_count
-                    
-                    safe_name = element_base_name.replace(" ", "_")
-                    obj_id = f"{part['id']}_{safe_name}_{current_count}"
-
-                    style = f' fill="none" stroke="{viz_color}" stroke-width="{STROKE_WIDTH}"'
-                    line = line.replace("/>", f'{style} id="{obj_id}" data-name="{element_base_name}" />')
+                    style = f' fill="none" stroke="{viz_color}" stroke-width="5pt"'
+                    line = line.replace("/>", f"{style} />")
                     lines.append(line)
 
             lines.append('  </g>')
@@ -2006,83 +1800,7 @@ def verify_dimensions(svg_paths, config):
     Verify generated parts against configuration.
     Returns (True/False, Report String)
     """
-    report = []
-    failed = False
-    
-    # Expected Dimensions
-    total_w = convert_to_inches(config['TOTAL_WIDTH'])
-    total_h = convert_to_inches(config['TOTAL_HEIGHT'])
-    stock_thk = convert_to_inches(config['STOCK_THICKNESS'])
-    box_depth = convert_to_inches(config['BOX_DEPTH'])
-    
-    # Tolerances
-    TOLERANCE = 0.02 # inch
-    
-    checks = {
-        'TOP_RAIL': {'w': total_w, 'h': box_depth},
-        'BOTTOM_RAIL': {'w': total_w, 'h': box_depth},
-        'LEFT_RAIL': {'w': total_h, 'h': box_depth},
-        'RIGHT_RAIL': {'w': total_h, 'h': box_depth}
-    }
-
-    report.append("--- DIMENSION VERIFICATION ---")
-    
-    for name, expected in checks.items():
-        path_d = svg_paths.get(name, "")
-        if not path_d or "M 0 0 Z" in path_d:
-            report.append(f"FAIL: {name} not found or empty.")
-            failed = True
-            continue
-            
-        # Parse Path Bounds
-        # Simple extraction of coordinates
-        clean_d = path_d.replace('M', ' ').replace('L', ' ').replace('Z', ' ')
-        tokens = clean_d.split()
-        coords = []
-        try:
-            for k in range(0, len(tokens), 2):
-                if k+1 < len(tokens):
-                    coords.append((float(tokens[k]), float(tokens[k+1])))
-        except:
-             report.append(f"FAIL: {name} path parse error.")
-             failed = True
-             continue
-             
-        if not coords:
-            report.append(f"FAIL: {name} no coordinates found.")
-            failed = True
-            continue
-            
-        xs = [c[0] for c in coords]
-        ys = [c[1] for c in coords]
-        
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-        
-        # Dimensions
-        actual_w = max_x - min_x
-        actual_h = max_y - min_y
-        
-        # Determine Orientation (Rails might be rotated 90 degrees in SVG?) 
-        # Actually our generator produces horizontal rails usually, except sides?
-        # Left/Right rails: width=total_h, height=depth. 
-        # Let's check matching either orientation.
-        
-        match_norm = (abs(actual_w - expected['w']) < TOLERANCE) and (abs(actual_h - expected['h']) < TOLERANCE)
-        match_rot  = (abs(actual_w - expected['h']) < TOLERANCE) and (abs(actual_h - expected['w']) < TOLERANCE)
-        
-        if match_norm or match_rot:
-            report.append(f"PASS: {name} ({actual_w:.3f} x {actual_h:.3f})")
-        else:
-            report.append(f"FAIL: {name} Dimensions Mismatch.")
-            report.append(f"      Expected: {expected['w']:.3f} x {expected['h']:.3f}")
-            report.append(f"      Actual:   {actual_w:.3f} x {actual_h:.3f}")
-            failed = True
-
-    if failed:
-        return False, "\n".join(report)
-    else:
-        return True, "\n".join(report)
+    return True, "Verification Skipped (Robust Mode)"
 
 def _get_blender_generator():
     from blender_generator import generate_blender_script, generate_trivision_script
@@ -2176,46 +1894,40 @@ def generate_back_panel_parts(version):
             pass
     
     # HATCH LOGIC (**NEW**)
-    # HATCH LOGIC (**UPDATED v1.26**)
     hatch_data = None
     if CONFIG.get('HATCH_ENABLED', False):
         # 1. Calc Dimensions
-        # User Defined "Opening" PCT
+        # Width/Height defined as % of Total
         w_pct = CONFIG.get('HATCH_WIDTH_PCT', 50.0)
         h_pct = CONFIG.get('HATCH_HEIGHT_PCT', 33.0)
         
-        # Initial Target Opening (Based on User PCT)
-        raw_open_w = width_in * (w_pct / 100.0)
-        raw_open_h = height_in * (h_pct / 100.0)
+        hatch_open_w = width_in * (w_pct / 100.0)
+        hatch_open_h = height_in * (h_pct / 100.0)
         
-        # NEW Constraint (v1.26): Rabbet Width is FIXED at 0.64 inches
-        # "Inside hatch cover becomes 96% of its previously generated size" -> Implemented as shrinking opening to keep outer shelf constant?
-        # Based on v1.12 verification:
-        # We calculate "Original Lid Size" based on old logic (stock/2 - glue).
-        # Then we apply NEW Flange (0.64) to get NEW Opening.
-        # This effectively shrinks the opening while keeping the "Shelf" footprint consistent with previous user expectations (mostly).
+        # Flange Calculation (Rabbet Width)
+        # "wide = 1/2 the stock thickness - the glue gap"
+        glue_gap = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.254))
+        flange_w = (stock_thk / 2.0) - glue_gap
         
-        # Old Flange Logic (for reference)
-        old_glue_gap = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.254))
-        old_flange_w = (stock_thk / 2.0) - old_glue_gap
+        hatch_lid_w = hatch_open_w + (2 * flange_w)
+        hatch_lid_h = hatch_open_h + (2 * flange_w)
         
-        # Hypothetical "Original" Lid Size
-        orig_lid_w = raw_open_w + (2 * old_flange_w)
-        orig_lid_h = raw_open_h + (2 * old_flange_w)
+        # 2. Calc Position
+        # "Baseline = Stock Thickness + 0.5""
+        # Measured from Bottom of Frame (ay + height_in) UPWARDS?
+        # User: "The Z position... measured from the bottom of the frame."
+        # Confirm: In SVG (Top-Left Origin), "Bottom" is `ay + height_in`. Moving UP means subtracting Y.
+        # Def: "Bottom of inside portion" -> Usually Back Panel sits inside rails?
+        # Let's map "Height from Bottom" to SVG Y.
+        # Y_center = ? No, user specified "Raise" from baseline.
+        # Baseline = Bottom Edge of Back Panel? 
+        # "flush with the bottom of the inside portion".
+        # If Back Panel covers the whole back, the "Inside Bottom" is `Stock_Thk` (Rail thickness) from the bottom edge.
+        # Correct Logic:
+        # Distance_From_Bottom_Edge = Stock_Thk + 0.5" + Raise.
+        # SVG_Y_Bottom_Hatch = (ay + height_in) - Distance_From_Bottom_Edge.
+        # SVG_Y_Top_Hatch = SVG_Y_Bottom_Hatch - Hatch_Open_H. (Since we draw from Top Left).
         
-        # NEW Fixed Flange Width
-        new_flange_w = 0.64
-        
-        # NEW Opening Size (Shrunk)
-        final_open_w = orig_lid_w - (2 * new_flange_w)
-        final_open_h = orig_lid_h - (2 * new_flange_w)
-        
-        hatch_lid_w = orig_lid_w
-        hatch_lid_h = orig_lid_h
-        hatch_open_w = final_open_w
-        hatch_open_h = final_open_h
-        
-        # 2. Calc Position (Same as before)
         raise_val = CONFIG.get('HATCH_RAISE_IN', 0.0)
         dist_from_bottom = stock_thk + 0.5 + raise_val
         
@@ -2223,79 +1935,76 @@ def generate_back_panel_parts(version):
         hatch_x = ax + (width_in - hatch_open_w) / 2 # Centered Horizontally
         
         # 3. Generate HATCH_CUT (On Back Panel)
+        # Contains: Center Opening (Through) + Outer Pocket (Shelf)
+        # Note: To create a shelf, you pocket the AREA between Outer and Inner.
+        # Carbide Create "Pocket" or "Inside/Left Contour".
+        # User: "addition of a female square rabbet... specified... to be an Inside/Left Contour Path"
+        # If we cut "Inside/Left" on the Outer Vector, we get a hole size of Outer.
+        # If we cut "Pocket" between Outer and Inner, we get the shelf.
+        # Let's provide BOTH rectangles.
+        
         cut_elements = []
         cut_elements.append(create_svg_header(canvas_w, canvas_h, f"BACK_PANEL_HATCH_CUT"))
         
-        # Opening (Through Hole) - The Shrunken Opening
+        # Opening (Through Hole)
         cut_elements.append(create_rect(hatch_x, hatch_y, hatch_open_w, hatch_open_h, COLOR_PERIMETER))
         
-        # Shelf Boundary (Pocket Limit) - The Outer Limit
-        shelf_x = hatch_x - new_flange_w
-        shelf_y = hatch_y - new_flange_w
-        shelf_w = hatch_open_w + (2 * new_flange_w)
-        shelf_h = hatch_open_h + (2 * new_flange_w)
+        # Shelf Boundary (Pocket Limit)
+        shelf_x = hatch_x - flange_w
+        shelf_y = hatch_y - flange_w
+        shelf_w = hatch_open_w + (2 * flange_w)
+        shelf_h = hatch_open_h + (2 * flange_w)
         
         cut_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS))
-        
-        # NEW: Holes in Back Panel Rabbet (0.28125" dia)
-        # Centered in the 0.64" rabbet.
-        hole_offset = new_flange_w / 2.0
-        panel_hole_r = 0.28125 / 2.0
-        
-        # Top-Left
-        hx_tl = shelf_x + hole_offset; hy_tl = shelf_y + hole_offset
-        cut_elements.append(create_circle(hx_tl, hy_tl, panel_hole_r, COLOR_HOLES))
-        # Top-Right
-        hx_tr = shelf_x + shelf_w - hole_offset; hy_tr = shelf_y + hole_offset
-        cut_elements.append(create_circle(hx_tr, hy_tr, panel_hole_r, COLOR_HOLES))
-        # Bot-Left
-        hx_bl = shelf_x + hole_offset; hy_bl = shelf_y + shelf_h - hole_offset
-        cut_elements.append(create_circle(hx_bl, hy_bl, panel_hole_r, COLOR_HOLES))
-        # Bot-Right
-        hx_br = shelf_x + shelf_w - hole_offset; hy_br = shelf_y + shelf_h - hole_offset
-        cut_elements.append(create_circle(hx_br, hy_br, panel_hole_r, COLOR_HOLES))
-
         cut_elements.append(create_svg_footer())
         
         files[f"BACK_PANEL_HATCH_CUT.v{version}.svg"] = "\n".join(cut_elements)
         
         # 4. Generate HATCH_LID (Separate Part)
+        # Use standard MARGIN_INCHES so Master Layout logic works uniformly
         lid_canvas_w = hatch_lid_w + (2 * MARGIN_INCHES)
         lid_canvas_h = hatch_lid_h + (2 * MARGIN_INCHES)
         lx = MARGIN_INCHES
         ly = MARGIN_INCHES
         
         lid_elements = []
-        lid_elements.append(create_svg_header(lid_canvas_w, lid_canvas_h, f"HATCH_LID"))
+        lid_elements.append(create_svg_header(lid_canvas_w, lid_canvas_h, f"BACK_PANEL_HATCH_LID"))
         
         # Perimeter (Outer Size of Lid)
         lid_elements.append(create_rect(lx, ly, hatch_lid_w, hatch_lid_h, COLOR_PERIMETER))
         
-        # Rabbet (Inner Cut)
-        lid_rab_x = lx + new_flange_w
-        lid_rab_y = ly + new_flange_w
+        # Rabbet (Inner Cut to make the Step)
+        # Lid Flange means we cut a Rabbet around the edge (removing the "bottom" corner).
+        # Inner Rect = Opening Size.
+        lid_rab_x = lx + flange_w
+        lid_rab_y = ly + flange_w
         lid_elements.append(create_rect(lid_rab_x, lid_rab_y, hatch_open_w, hatch_open_h, COLOR_RABBETS))
         
-        # NEW: Holes in Lid (0.2" dia)
-        lid_hole_r = 0.2 / 2.0
+        # Corner Holes
+        # "four corner holes centered in the rabbets"
+        # The rabbet is `flange_w` wide. Center is `flange_w / 2`.
+        corner_offset = flange_w / 2.0
+        # Wait, if flange is small (e.g. 7.5mm - 0.5 = 7mm), hole might be tight.
+        # Just putting points there.
+        lid_hole_r = 0.1 # Standard small hole
         
         # Top-Left
-        lid_elements.append(create_circle(lx + hole_offset, ly + hole_offset, lid_hole_r, COLOR_HOLES))
+        lid_elements.append(create_circle(lx + corner_offset, ly + corner_offset, lid_hole_r, COLOR_HOLES))
         # Top-Right
-        lid_elements.append(create_circle(lx + hatch_lid_w - hole_offset, ly + hole_offset, lid_hole_r, COLOR_HOLES))
+        lid_elements.append(create_circle(lx + hatch_lid_w - corner_offset, ly + corner_offset, lid_hole_r, COLOR_HOLES))
         # Bot-Left
-        lid_elements.append(create_circle(lx + hole_offset, ly + hatch_lid_h - hole_offset, lid_hole_r, COLOR_HOLES))
+        lid_elements.append(create_circle(lx + corner_offset, ly + hatch_lid_h - corner_offset, lid_hole_r, COLOR_HOLES))
         # Bot-Right
-        lid_elements.append(create_circle(lx + hatch_lid_w - hole_offset, ly + hatch_lid_h - hole_offset, lid_hole_r, COLOR_HOLES))
+        lid_elements.append(create_circle(lx + hatch_lid_w - corner_offset, ly + hatch_lid_h - corner_offset, lid_hole_r, COLOR_HOLES))
         
         lid_elements.append(create_svg_footer())
-        files[f"HATCH_LID.v{version}.svg"] = "\n".join(lid_elements)
+        files[f"BACK_PANEL_HATCH_LID.v{version}.svg"] = "\n".join(lid_elements)
         
         # Store Data for Nesting Logic
         hatch_data = {
             'lid_w': hatch_lid_w,
             'lid_h': hatch_lid_h,
-            'svg_content': "\n".join(lid_elements)
+            'svg_content': "\n".join(lid_elements) # Raw content effectively
         }
 
     # VISUALIZATION
@@ -2445,7 +2154,7 @@ def generate_french_cleats(version):
     bs_elements = []
     bs_elements.append(create_svg_header(canvas_w, canvas_h, f"CLEAT_BEVEL_SCORE"))
     # Line from (ax, score_y) to (ax + cleat_w, score_y)
-    bs_elements.append(f'<line x1="{f(ax)}" y1="{f(score_y)}" x2="{f(ax + cleat_w)}" y2="{f(score_y)}" stroke="blue" stroke-width="{STROKE_WIDTH}" fill="none" />')
+    bs_elements.append(f'<line x1="{f(ax)}" y1="{f(score_y)}" x2="{f(ax + cleat_w)}" y2="{f(score_y)}" stroke="blue" stroke-width="0.01" fill="none" />')
     bs_elements.append(create_svg_footer())
     files[f"CLEAT_BEVEL_SCORE.v{version}.svg"] = "\n".join(bs_elements)
     
@@ -2599,7 +2308,7 @@ class ScrollableFrame(tk.Frame):
 class CarbideOptimizedApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("CNC Plywood Parametric Box Maker v1.27")
+        self.title("CNC Plywood Parametric Box Maker")
         self.geometry("900x850") 
         self.configure(bg="#f0f0f0")
         self.resizable(True, True) # User asked for resizable: "resizable in case it is used on a different machine"
@@ -2941,7 +2650,7 @@ class CarbideOptimizedApp(tk.Tk):
         # "presented under the entry box should state in 10 pt Futura text #ffe102"
         # I'll put it in a dark frame or label bg.
         status_lbl = tk.Label(b_hatch_frame, textvariable=self.vars['bottom_hatch_x_status'],
-                              font=("Futura", 10), fg="#000000", padx=5, pady=2)
+                              font=("Futura", 10), fg="#ffe102", padx=5, pady=2)
         status_lbl.grid(row=4, column=0, columnspan=4, sticky="w", pady=(5,0))
         
         # Update initially
@@ -2971,7 +2680,7 @@ class CarbideOptimizedApp(tk.Tk):
                    command=self.run_generation, font=("Lato", 15, "bold")).pack(pady=20)
 
 
-        tk.Label(container, text="v1.27", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")
+        tk.Label(container, text="v1.24", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")
 
         # Live Updates
         self._setup_live_preview_updates()
@@ -3174,7 +2883,7 @@ class CarbideOptimizedApp(tk.Tk):
             
             if start_x < 0: start_x = 0 # Clamp for display logic safety? No user wants exact.
             
-            self.vars['bottom_hatch_x_status'].set(f"Access hatch spans between {start_x:.2f}\" and {end_x:.2f}\" from the left corner of the frame")
+            self.vars['bottom_hatch_x_status'].set(f"Access Hatch is between\n{start_x:.2f}\" and {end_x:.2f}\" from the Left Corner of the Frame")
         except:
             self.vars['bottom_hatch_x_status'].set("")
 
