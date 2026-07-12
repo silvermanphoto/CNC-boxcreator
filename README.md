@@ -8,10 +8,8 @@ on a Shapeoko-class router.
 
 Built to fabricate museum-style **shadowbox frames**: four rails joined with CNC-cut
 box (finger) joints, a rabbeted front bezel with a display window, and a rabbeted
-back panel. The parameter set grew around a real build — the wooden housings for the
-[Trivision Kinetic Sculpture](https://github.com/silvermanphoto/jls-trivision-kinetic-sculpture),
-a 12-prism kinetic artwork by Joel Silverman — so it also supports motor pockets,
-access hatches, and cleats.
+back panel. The project grew around a particular build for a kinetic artwork by artist
+Joel Silverman — so it also supports motor pockets, access hatches, and cleats.
 
 ## What it generates
 
