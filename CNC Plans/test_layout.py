@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # M7 FIX: this is a post-hoc inspector of the most recent generated output folder.
 # The old broken importlib reference to "CNC GENERATOR - Claude v1.04.py" (which does not
 # exist and was never executed) has been removed, and the folder pattern updated to the
-# current "McTell SVGs v<N>" naming. To generate output, run cnc_generator.py (GUI) or the
+# current "Box SVGs v<N>" naming. To generate output, run cnc_generator.py (GUI) or the
 # headless acceptance test in test_gen.py.
 
 import json
@@ -20,8 +20,8 @@ from pathlib import Path
 # Find the most recent output folder
 out_path = Path(__file__).resolve().parent
 
-# Look for the current output folders ("McTell SVGs v<N>")
-folders = sorted([f for f in out_path.iterdir() if f.is_dir() and "McTell SVGs v" in f.name],
+# Look for the current output folders ("Box SVGs v<N>")
+folders = sorted([f for f in out_path.iterdir() if f.is_dir() and "Box SVGs v" in f.name],
                  key=lambda x: int(re.search(r'v(\d+)', x.name).group(1)) if re.search(r'v(\d+)', x.name) else 0)
 
 if folders:

@@ -2,10 +2,10 @@
 
 **Verdict:** FIX-FIRST — the master CAM layout (the file actually milled from) provably overlaps parts and mislabels cut types in the current shipped output, and two realistic config combinations crash generation outright.
 **Counts:** Critical 3 · High 7 · Medium 7 · Low 4
-**Basis:** Intent inferred from code + `USER_SPECIFICATIONS.md`: a parametric shadowbox generator emitting per-part SVGs, a combined `MASTER_LAYOUT_COMBINED_v*.svg` for Carbide Create CAM (color/name = toolpath type), and Blender/TriVision visualization scripts. Stack inferred: Python 3 (venv), Tkinter + matplotlib GUI, Blender 4.x target. **Live-lineage assumption:** the review target is `Gemini McTell CNC Plans/cnc_generator.py` (header v1.25, modular) + `blender_generator.py` + `utils.py` + `generate_headless.py` — evidence: the newest output (`McTell SVGs v134`) embeds v1.25 markers, `generate_headless.py` imports `cnc_generator`, and `cnc_generator_settings.json` (newest mtime) matches its settings schema. The higher-numbered monoliths (`CNC GENERATOR - CARBIDE-OPTIMIZED v1.26–v1.29.py`, Jan 27–28) and `cnc_v1_11/12.py` are treated as abandoned parallel tracks. No code was executed; the GUI was not run — every runtime claim below is either traced statically or verified against the shipped v134 artifacts, and is tagged accordingly.
-**Scope:** Reviewed in full: `cnc_generator.py` (3,330 lines), `blender_generator.py` (1,979), `utils.py`, `generate_headless.py`, `verify_encasement.py`, `test_gen.py`, `test_layout.py`, plus `McTell SVGs v134/` outputs (`MASTER_LAYOUT_COMBINED_v134.svg`, `OPEN_ME_IN_BLENDER.v134.py`, `config.json`) as ground truth. Deliberately skipped: `ARCHIVED PYTHON CODE/`, the v1.26–v1.29 monoliths, `cnc_v1_11/12.py`, `PROJECT CLOSET/`, the frozen `.app`, binary assets (`.c2d`, `.ai`, `.STEP`), and generated output folders other than v134 — superseded, frozen, or non-source.
+**Basis:** Intent inferred from code + `USER_SPECIFICATIONS.md`: a parametric shadowbox generator emitting per-part SVGs, a combined `MASTER_LAYOUT_COMBINED_v*.svg` for Carbide Create CAM (color/name = toolpath type), and Blender/TriVision visualization scripts. Stack inferred: Python 3 (venv), Tkinter + matplotlib GUI, Blender 4.x target. **Live-lineage assumption:** the review target is `CNC Plans/cnc_generator.py` (header v1.25, modular) + `blender_generator.py` + `utils.py` + `generate_headless.py` — evidence: the newest output (`Box SVGs v134`) embeds v1.25 markers, `generate_headless.py` imports `cnc_generator`, and `cnc_generator_settings.json` (newest mtime) matches its settings schema. The higher-numbered monoliths (`CNC GENERATOR - CARBIDE-OPTIMIZED v1.26–v1.29.py`, Jan 27–28) and `cnc_v1_11/12.py` are treated as abandoned parallel tracks. No code was executed; the GUI was not run — every runtime claim below is either traced statically or verified against the shipped v134 artifacts, and is tagged accordingly.
+**Scope:** Reviewed in full: `cnc_generator.py` (3,330 lines), `blender_generator.py` (1,979), `utils.py`, `generate_headless.py`, `verify_encasement.py`, `test_gen.py`, `test_layout.py`, plus `Box SVGs v134/` outputs (`MASTER_LAYOUT_COMBINED_v134.svg`, `OPEN_ME_IN_BLENDER.v134.py`, `config.json`) as ground truth. Deliberately skipped: `ARCHIVED PYTHON CODE/`, the v1.26–v1.29 monoliths, `cnc_v1_11/12.py`, `PROJECT CLOSET/`, the frozen `.app`, binary assets (`.c2d`, `.ai`, `.STEP`), and generated output folders other than v134 — superseded, frozen, or non-source.
 
-All paths below are relative to `Gemini McTell CNC Plans/` unless noted.
+All paths below are relative to `CNC Plans/` unless noted.
 
 ## Triage (fix in this order)
 - [C1] CRITICAL — Master layout packs rails without finger overhang: parts overlap and go off-sheet — cnc_generator.py:1514–1524
@@ -49,7 +49,7 @@ All paths below are relative to `Gemini McTell CNC Plans/` unless noted.
   +    parts_to_pack.append(prepare_part("BOTTOM", f_bot, w_topbot, box_d, extra_id={'x_shift': overhang}))
   ```
   and in the transform construction (lines 1678–1681), add the shift so the leftmost finger lands at `global_x`: unrotated `translate({global_x + x_shift}, {global_y}) translate(-2,-2)`, rotated `translate({global_x + part_h}, {global_y + x_shift}) rotate(90) translate(-2,-2)` where `x_shift = part.get('extra', {}).get('x_shift', 0)`. A more robust structural fix: compute each part's true bbox by scanning its path coordinates (the paths are plain `M/L` lists) and pack on that — 10 lines, immune to future geometry changes.
-- **Confidence:** CONFIRMED — parse `McTell SVGs v134/MASTER_LAYOUT_COMBINED_v134.svg`, apply each `<path>`'s transform to its coordinates: TOP x-range [−0.0984, 13.9016] intersects BOTTOM x-range [13.2048, 27.2048].
+- **Confidence:** CONFIRMED — parse `Box SVGs v134/MASTER_LAYOUT_COMBINED_v134.svg`, apply each `<path>`'s transform to its coordinates: TOP x-range [−0.0984, 13.9016] intersects BOTTOM x-range [13.2048, 27.2048].
 
 ### [C2] CRITICAL — Hatch shelf pockets classified as through-cuts in master layout
 - **Where:** cnc_generator.py:1703 (`get_layer_type_v11`: `"HATCH_CUT"` → `CONTOUR (Inside)`), 1789 (dead special-case: `"BOTTOM_HATCH_CUT" in fname` never matches `BOTTOM_RAIL_HATCH_CUT`)
@@ -108,7 +108,7 @@ All paths below are relative to `Gemini McTell CNC Plans/` unless noted.
 - **Where:** blender_generator.py:738, 811, 912 (template conditions), 156–157 (bool emission `str(config.get('CLEATS_ENABLED', True))`), 138–163 (emitted CONFIG block omits `BOTTOM_HATCH_ENABLED/WIDTH/HEIGHT/X_PCT`)
 - **Category:** correctness
 - **Problem:** The emitted script's CONFIG holds Python bool literals (`'CLEATS_ENABLED': False` in the shipped v134 script), but the feature gates test `CONFIG.get('CLEATS_ENABLED', 'True') == 'True'`. `True == 'True'` is always `False`. Additionally the bottom-hatch keys are never written into the emitted CONFIG at all, so that gate reads its `'False'` default.
-- **Impact:** French cleats, the rear hatch, and the bottom hatch never appear in the Blender visualization regardless of settings — the viz silently misrepresents the design (the tool's whole purpose). Verified in `McTell SVGs v134/OPEN_ME_IN_BLENDER.v134.py` lines 56–57 vs 638/711/812.
+- **Impact:** French cleats, the rear hatch, and the bottom hatch never appear in the Blender visualization regardless of settings — the viz silently misrepresents the design (the tool's whole purpose). Verified in `Box SVGs v134/OPEN_ME_IN_BLENDER.v134.py` lines 56–57 vs 638/711/812.
 - **Fix:** In the template, test truthiness: `if CONFIG.get('CLEATS_ENABLED', False):` (same for both hatches), and add the four `BOTTOM_HATCH_*` entries to the emitted CONFIG block. `depends on [H4]` — fixing this alone exposes the NameError below.
 - **Confidence:** CONFIRMED — shipped-script text shows bool literals and string comparisons.
 
@@ -140,7 +140,7 @@ All paths below are relative to `Gemini McTell CNC Plans/` unless noted.
   if w_in > max_win_w: warn/clamp (same for height)
   ```
   Surface it in the GUI status area, not just stdout.
-- **Confidence:** CONFIRMED that the shipped config produces window > plug (arithmetic from `McTell SVGs v134/config.json`); SUSPECTED on intent — if Joel deliberately wants a face-frame-only bezel, downgrade to a warning rather than a clamp. Check with him before choosing clamp vs. warn.
+- **Confidence:** CONFIRMED that the shipped config produces window > plug (arithmetic from `Box SVGs v134/config.json`); SUSPECTED on intent — if Joel deliberately wants a face-frame-only bezel, downgrade to a warning rather than a clamp. Check with him before choosing clamp vs. warn.
 
 ### [H7] HIGH — Hatch lids are line-to-line with their recesses: zero fit clearance on both hatches
 - **Where:** cnc_generator.py:2004–2005 (rear lid = opening + 2·flange), 2047–2048 (shelf = same), 2066/2073 (lid outer/plug rects); bottom hatch mirrors it at 1120–1121 vs 1158–1159 and 1171/1177
@@ -245,16 +245,16 @@ All paths below are relative to `Gemini McTell CNC Plans/` unless noted.
 - The half-round finger/socket math in `generate_perimeter_with_fingers` (cnc_generator.py:589–794) is correct and load-bearing: odd symmetric finger count from `compute_finger_layout`, both mating edges derived from `BOX_DEPTH` so counts always agree, `FIT_TOLERANCE` shrinks males only, and first/last fingers snap flush to the outer edge (lines 686–690, 764–768). C1's fix must not alter path geometry — only packing dims and placement transforms.
 - Assembled-dimension identities: horizontal rail body `TOTAL_WIDTH − 2·stock` + finger protrusion `stock − fit_tol` per side; vertical rails full `TOTAL_HEIGHT` with sockets `stock` deep. These produce the correct outer box; don't "fix" them while fixing the packer.
 - Per-part SVG color semantics (red perimeter / blue holes / orange rabbets / purple window / green pockets) are correct in every individual file — H1/C2 fixes belong in the master-layout flattening only.
-- Output-folder versioning (`McTell SVGs v{n+1}`, scan at cnc_generator.py:3196–3205) and settings persistence round-trip work; keep them.
+- Output-folder versioning (`Box SVGs v{n+1}`, scan at cnc_generator.py:3196–3205) and settings persistence round-trip work; keep them.
 - The unit-toggle conversion in `handle_unit_toggle` (in↔mm on existing field values) is correct; H5/M5 key consolidation must not touch it.
 
 ## Acceptance checks
-Run from `Gemini McTell CNC Plans/` with the project venv. Checks 1–3 gate the criticals; run check 1 after every fix since it regenerates the master.
+Run from `CNC Plans/` with the project venv. Checks 1–3 gate the criticals; run check 1 after every fix since it regenerates the master.
 
 1. **[C1] No overlap, no off-sheet geometry.** Drive a generation with the v134 settings (14×14×2.5 in, stock 15.19936 mm, gap 0, window 13×13, cleats/hatches off — `test_gen.py` repointed per M7 works), then:
    ```python
    import re
-   svg = open(sorted(__import__('glob').glob('McTell SVGs v*/MASTER_LAYOUT_COMBINED_v*.svg'))[-1]).read()
+   svg = open(sorted(__import__('glob').glob('Box SVGs v*/MASTER_LAYOUT_COMBINED_v*.svg'))[-1]).read()
    parts = {}
    for d, tf, pid in re.findall(r'<path d="([^"]*)" [^>]*transform="([^"]*)" id="(\w+_OUTSIDE_CUTS)"', svg):
        n = [float(x) for x in re.findall(r'-?\d+\.?\d*', d)]
@@ -273,10 +273,10 @@ Run from `Gemini McTell CNC Plans/` with the project venv. Checks 1–3 gate the
    print("C1 PASS")
    ```
    Must print `C1 PASS`. (Today it fails with `OVERLAP TOP_OUTSIDE_CUTS x BOTTOM_OUTSIDE_CUTS` and off-sheet min-x −0.0984.)
-2. **[C3] Nested-hatch generation completes.** Same settings but `hatch_enabled=True` (window 13×13 forces nesting). Generation must produce a new `McTell SVGs v*` folder containing `MASTER_LAYOUT_COMBINED_v*.svg` with no `NameError` dialog/traceback.
+2. **[C3] Nested-hatch generation completes.** Same settings but `hatch_enabled=True` (window 13×13 forces nesting). Generation must produce a new `Box SVGs v*` folder containing `MASTER_LAYOUT_COMBINED_v*.svg` with no `NameError` dialog/traceback.
 3. **[C2]/[H1] Master layer semantics.** In the run from check 2, assert in the master SVG: the rear-hatch *shelf* rect's coordinates appear inside a path whose `data-name` is a rabbet/pocket bucket (not `INSIDE WINDOW`); the `HATCH_LID` inner-step rect and its 4 circles do *not* appear in any `*_OUTSIDE_CUTS` path.
 4. **[H2] CSINK mapping.** With `cleats_enabled=True`, generate and assert every `a r r 0 1 0` circle arc from `CLEAT_WALL_HOLES_CSINK` coordinates lands in a path with `data-name="RABBET"`/pocket bucket, and `CLEAT_WALL_HOLES_THROUGH` circles land in `data-name="HOLE"`.
-5. **[H3]/[H4]/[M4] Blender features render.** Generate with cleats + rear hatch (raise 1.0 in) enabled; in the emitted `OPEN_ME_IN_BLENDER.v*.py` assert: no occurrence of `== 'True'`; `half_d` is assigned before its first read (`grep -n "half_d"` — first hit is the assignment); emitted `'HATCH_RAISE_IN': 1.0`. Then run it in Blender 4.x: objects `McTell_Cleat_Box`, `McTell_Cleat_Wall`, `McTell_Hatch_Lid` must exist, hatch-lid center Z ≈ `(−H/2 + stock + 1.0·0.0254 + open_h/2)` within 1 mm.
+5. **[H3]/[H4]/[M4] Blender features render.** Generate with cleats + rear hatch (raise 1.0 in) enabled; in the emitted `OPEN_ME_IN_BLENDER.v*.py` assert: no occurrence of `== 'True'`; `half_d` is assigned before its first read (`grep -n "half_d"` — first hit is the assignment); emitted `'HATCH_RAISE_IN': 1.0`. Then run it in Blender 4.x: objects `Box_Cleat_Box`, `Box_Cleat_Wall`, `Box_Hatch_Lid` must exist, hatch-lid center Z ≈ `(−H/2 + stock + 1.0·0.0254 + open_h/2)` within 1 mm.
 6. **[H5] One glue-gap source.** `grep -n "GLUE_GAP" cnc_generator.py` returns nothing (or only the write `CONFIG['GLUE_GAP'] = CONFIG['FIT_TOLERANCE']`). With glue gap 0.4 mm, rear-hatch and bottom-hatch flange widths in the emitted SVGs must be equal: `stock/2 − 0.4 mm`.
 7. **[H6] Window/plug guard.** With the v134 settings (window 13 on plug 12.803), generation must emit a visible warning (or clamp) naming both numbers; with window 12.0 it must stay silent.
 8. **[H7] Lid clearance.** With gap 0.4 mm, assert in the emitted SVGs: rear `HATCH_LID` outer rect width == shelf rect width − 0.8 mm (in inches: −0.0315), and lid plug width == opening width − 0.8 mm. Same for the bottom hatch.

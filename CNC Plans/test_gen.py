@@ -7,7 +7,7 @@ monolith. It now drives the live module directly and asserts the fixes from the
 fable-review pass (C1 rail overlap, C2 hatch shelf routing, C3 nested-hatch crash,
 H2 countersink routing). Runs anywhere — no display/GUI required.
 
-Run:  ../venv/bin/python3 test_gen.py     (from the "Gemini McTell CNC Plans" folder)
+Run:  ../venv/bin/python3 test_gen.py     (from the "CNC Plans" folder)
 """
 import os, re, json, copy, sys
 

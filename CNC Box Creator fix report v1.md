@@ -37,7 +37,7 @@
 - **L2** (report: CONFIRMED by read; "construct a >48" part set to observe") — Ran the report's exact case (47×47 then 50×47); every sheet with no item taller than 48 has h == 48.
 
 ## Verification evidence
-Run from `Gemini McTell CNC Plans/` with the project venv.
+Run from `CNC Plans/` with the project venv.
 
 1. **Syntax** — `py_compile` on all five touched files → `ALL SYNTAX OK`.
 2. **[C1] no overlap / on-sheet** (`test_gen.py`) — v134-repro: `6 parts, on-sheet, no overlap`; hatch+cleats: `8 parts, on-sheet, no overlap`. (Before the fix the same v134 config produced `OVERLAP TOP_OUTSIDE_CUTS x BOTTOM_OUTSIDE_CUTS` and min-x −0.098.)

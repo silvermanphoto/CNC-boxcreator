@@ -72,7 +72,7 @@ The app's motor feature is a single NEMA-17 pocket in a rail at an ungrounded 0.
 ### 11. Meta-lesson: every `OffsetFaces` in the expert's timeline is a missing parameter
 The expert never created a single user parameter — he brute-forced ~50 face offsets, moves, and scales on imported dumb solids. That is the cost of the app exporting non-parametric geometry with wrong or inflexible dimensions. Two remedies, in order of value:
 1. Get the numbers in this table into the app as defaults/parameters (lips, flanges, cleat deltas, wall gap, hole tiers) so the output is right the first time.
-2. Make the Fusion export parametric — emit user parameters (`stock`, `depth`, `window_w`, …) wired to the sketches (the `DXF_for_Fusion` experiment in `McTell SVGs v131` is the seed), so the next expert adjusts a value instead of rebuilding the frame.
+2. Make the Fusion export parametric — emit user parameters (`stock`, `depth`, `window_w`, …) wired to the sketches (the `DXF_for_Fusion` experiment in `Box SVGs v131` is the seed), so the next expert adjusts a value instead of rebuilding the frame.
 
 ---
 
