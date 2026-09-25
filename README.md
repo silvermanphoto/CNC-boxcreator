@@ -30,7 +30,7 @@ Each run writes a versioned output folder (`Box SVGs vNNN/`) containing:
 
 ```
 cd "CNC Plans"
-python3 "CNC GENERATOR - CARBIDE-OPTIMIZED v1.29.py"
+../venv/bin/python3 cnc_generator.py
 ```
 
 Requires Python 3 with tkinter (present in the standard python.org installers).
@@ -45,9 +45,10 @@ person standing at the machine.
 ## Repository tour
 
 ```
-CNC Plans/                   the live generator (highest version number wins),
-                             its output sets, and fabrication support files
-  ARCHIVED PYTHON CODE/      earlier generator versions (v1.03 … v1.25)
+CNC Plans/                   the live generator (cnc_generator.py, with
+                             blender_generator.py and utils.py), its output
+                             sets, and fabrication support files
+  ARCHIVED PYTHON CODE/      earlier generator versions (v1.03 … v1.29)
   For Fabrication/           final DWG drawings sent to fabrication
   JOINERY_MATH_FIXES.md      notes on the joint-math corrections
 ARCHIVED PYTHON CODE/        oldest archived version
