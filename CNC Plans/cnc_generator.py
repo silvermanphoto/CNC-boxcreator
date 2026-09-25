@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.33
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.34
 # ========================================
-# PRODUCTION RELEASE v1.33  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.34  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -393,7 +393,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.33"
+APP_VERSION = "1.34"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -3197,12 +3197,13 @@ class CarbideOptimizedApp(tk.Tk):
             step_depth_in = stock_thk_in / 2.0
             
             # Rim Width logic
-            # Rim Width = Stock + GlueGap + Adjustment
+            # Rim Width = Stock + Adjustment. January v1.29 removed the glue gap from the rim
+            # at Joel's request (was: Stock + GlueGap + Adjustment).
             # NOTE: If Adjustment is positive (Shrink Lid Fit), it typically means making the Plug Smaller, or the Rim Wider?
             # "Shrink Lid Fit" implies making the Fit Tighter (less gap) or Looser? 
             # Original code said: "Positive = Looser".
             # Let's assume input maps directly to the logic:
-            calc_rim_width = stock_thk_in + convert_to_inches(CONFIG['FIT_TOLERANCE']) + fit_adj_in
+            calc_rim_width = stock_thk_in + fit_adj_in
 
             # M5 FIX: store the physical rim width (inches) directly. The bezel/back panel
             # generators now read *_RIM_WIDTH_IN. FRONT/BACK_RABBET_WIDTH are retained only
@@ -3310,7 +3311,7 @@ class CarbideOptimizedApp(tk.Tk):
                     h_in = min(h_in, total_h_in - 0.5)
 
                     # H6 FIX: the structural bezel plug is only (total - 2*rim) wide, where
-                    # rim = stock + glue gap + lid-fit adjustment (calc_rim_width, above). A
+                    # rim = stock + lid-fit adjustment (calc_rim_width, above). A
                     # window wider than the plug cuts the plug ring away and leaves a fragile
                     # half-stock frame. Warn (do not silently resize) so the user decides.
                     plug_w = total_w_in - (2 * calc_rim_width)
