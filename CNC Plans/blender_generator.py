@@ -3,7 +3,7 @@ Blender Generator Module for CNC Box Creator.
 Handles generation of Blender Python scripts for visualization.
 """
 
-from utils import convert_to_inches, MARGIN_INCHES
+from utils import convert_to_inches, MARGIN_INCHES, CLEAT_MAX_LEN_IN
 
 def generate_blender_script(version, config, rail_paths, geom_front, geom_back):
     """
@@ -87,7 +87,7 @@ def generate_blender_script(version, config, rail_paths, geom_front, geom_back):
     # Python is easier.
     cleat_holes_m = []
     if config.get('CLEATS_ENABLED', True):
-        c_w_in = min(total_width_in * 0.80, 48.0)
+        c_w_in = min(total_width_in * 0.80, CLEAT_MAX_LEN_IN)
         c_h_in = 4.0
         # Calc Holes
         # Y = height_in / 3.0 (From top)
@@ -1703,9 +1703,9 @@ def create_shadowbox_assembly():
     # Cleats
     cleat_obj_box = None
     if CONFIG.get('CLEATS_ENABLED', True):
-        cw = min(total_w * 0.80, 48.0 * 0.0254) # Match generator logic (inches converted to m already? No generator does it in in)
+        cw = min(total_w * 0.80, {CLEAT_MAX_LEN_IN} * 0.0254) # Match generator logic (inches converted to m already? No generator does it in in)
         # Recalc precisely:
-        cw = min(CONFIG['TOTAL_WIDTH_IN'] * 0.80, 48.0) * 0.0254
+        cw = min(CONFIG['TOTAL_WIDTH_IN'] * 0.80, {CLEAT_MAX_LEN_IN}) * 0.0254
         ch = 4.0 * 0.0254
         
         # 1. Box Cleat

@@ -28,7 +28,7 @@ BASE = {
 }
 
 
-def build(cfg):
+def build(cfg, problems=None):
     C.CONFIG.clear(); C.CONFIG.update(cfg)
     v = "TEST"
     ff, gf = C.generate_front_bezel_parts(v)
@@ -38,7 +38,7 @@ def build(cfg):
     f_right, _ = C.generate_rail_parts("RIGHT_RAIL", False, False, v)
     fb, gb = C.generate_back_panel_parts(v)
     fc, cd = C.generate_french_cleats(v)
-    master = C.generate_master_carbide_layout(v, ff, fb, f_top, f_bot, f_left, f_right, gb, cd)
+    master = C.generate_master_carbide_layout(v, ff, fb, f_top, f_bot, f_left, f_right, gb, cd, problems=problems)
     return master["MASTER_LAYOUT_COMBINED_vTEST.svg"]
 
 
@@ -101,6 +101,7 @@ def run_test():
     test_cnc02_rear_hatch()
     test_cnc02_bottom_hatch()
     test_cnc04_nested_lid_routing()
+    test_cnc05_sheet_edges()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -248,6 +249,37 @@ def test_cnc04_nested_lid_routing():
              for l in svg.splitlines() if re.search(r'id="FRONT_\w+_\d+"', l)]
     assert names.count("OUTSIDE CUTS") == 1 and names.count("RABBET") == 1 and names.count("HOLE") == 4, names
     print("  PASS [CNC-04] nested lid: 1 outside cut, 1 pocket step, 4 holes")
+
+
+
+def test_cnc05_sheet_edges():
+    # CNC-05: no part placed past its sheet's edge. Checked from the packer's placements,
+    # since part_boxes misreads rectangle-drawn parts such as cleats.
+    cases = [(68.25, 43.9, 6.1, (62.18, 36.83), True), (47.75, 20, 2.5, (40, 14), False)]
+    for w, h, d, win, cleats in cases:
+        cfg = copy.deepcopy(BASE)
+        cfg.update({"TOTAL_WIDTH": w * 25.4, "TOTAL_HEIGHT": h * 25.4, "BOX_DEPTH": d * 25.4,
+                    "WINDOW_WIDTH_IN": win[0], "WINDOW_HEIGHT_IN": win[1], "CLEATS_ENABLED": cleats})
+        probs = []
+        svg = build(cfg, problems=probs)
+        assert probs == [], probs
+        ok, report = C.verify_dimensions(svg, C.CONFIG, extra_problems=probs)
+        assert ok, report
+        for pid, (x0, y0, x1, y1) in part_boxes(svg).items():   # the report's check 5
+            left = (x0 // 52) * 52          # 48 in sheets with 4 in between
+            assert x1 - left <= 48 + 1e-6, f"CNC-05: {pid} ends {x1 - left:.3f} in along a 48 in sheet"
+    _, cd = C.generate_french_cleats("T")                        # last case had no cleats
+    assert cd is None
+    C.CONFIG["CLEATS_ENABLED"] = True; C.CONFIG["TOTAL_WIDTH"] = 68.25 * 25.4
+    _, cd = C.generate_french_cleats("T")
+    assert abs(cd["cleat_w"] - 47.0) < 1e-9, cd["cleat_w"]
+    # The edge check itself catches an overrun, and the overrun fails the layout check.
+    fake = [{"w": 48.0, "h": 48.0, "items": [{"item": {"id": "CLEAT_BOX"}, "x": 0.5, "y": 0.5, "w": 48.0, "h": 4.0}]}]
+    probs = C.sheet_edge_problems(fake)
+    assert len(probs) == 1 and "CLEAT_BOX runs past" in probs[0], probs
+    ok, report = C.verify_dimensions(svg, C.CONFIG, extra_problems=probs)
+    assert not ok and "CLEAT_BOX runs past" in report, report
+    print("  PASS [CNC-05] both boxes stay on their sheets; cleat capped at 47 in; an overrun fails the check")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.37
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.38
 # ========================================
-# PRODUCTION RELEASE v1.37  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.38  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -37,7 +37,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 import json
-from utils import convert_to_inches, MARGIN_INCHES
+from utils import convert_to_inches, MARGIN_INCHES, CLEAT_MAX_LEN_IN
 
 # ==============================================================================
 # DEPENDENCY CHECK
@@ -388,7 +388,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.37"
+APP_VERSION = "1.38"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -1398,7 +1398,8 @@ class BinPacker:
             else:
                 y_start = gap
             
-            if y_start + h_curr <= sheet['h'] and w_curr <= sheet['w']:
+            # CNC-05: a new shelf starts at x = gap, so the part ends at gap + width.
+            if y_start + h_curr <= sheet['h'] and gap + w_curr <= sheet['w']:
                  # Create shelf
                  new_shelf = {'y': y_start, 'h': h_curr, 'current_x': gap}
                  sheet['shelves'].append(new_shelf)
@@ -1516,7 +1517,20 @@ class TextManager:
             
         return t
 
-def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_left, f_right, geom_back, cleat_data):
+def sheet_edge_problems(sheets):
+    """CNC-05: every placed part must lie inside its sheet. Uses the packer's own
+    placements (the SVG parse in verify_dimensions misreads rectangles)."""
+    problems = []
+    for s_idx, sheet in enumerate(sheets):
+        for p in sheet['items']:
+            x1, y1 = p['x'] + p['w'], p['y'] + p['h']
+            if p['x'] < -1e-6 or p['y'] < -1e-6 or x1 > sheet['w'] + 1e-6 or y1 > sheet['h'] + 1e-6:
+                problems.append(f"{p['item']['id']} runs past the edge of sheet {s_idx + 1} "
+                                f"({sheet['w']:.0f} x {sheet['h']:.0f} in): it spans x {p['x']:.3f} to {x1:.3f} in, "
+                                f"y {p['y']:.3f} to {y1:.3f} in.")
+    return problems
+
+def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_left, f_right, geom_back, cleat_data, problems=None):
     """
     Generate optimized nesting layout FLATTENED (No Groups).
     v1.11 Update: 
@@ -1649,6 +1663,8 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
     # 2. RUN PACKER
     packer = BinPacker(gap=GAP)
     packer.pack_items(parts_to_pack)
+    if problems is not None:
+        problems.extend(sheet_edge_problems(packer.sheets))  # CNC-05
     
     # 3. GENERATE MASTER SVG (FLATTENED)
     
@@ -1938,7 +1954,7 @@ def set_mac_label(filepath, color_idx):
     except:
         pass
 
-def verify_dimensions(master_svg, config):
+def verify_dimensions(master_svg, config, extra_problems=None):
     """
     M1 FIX: real post-generation check on the master layout (regression net for C1).
     Parses each part's OUTSIDE-CUT perimeter, applies its transform, and asserts that
@@ -1946,12 +1962,15 @@ def verify_dimensions(master_svg, config):
     perimeters overlap. Returns (True/False, human-readable report).
     Nested elements carry an id suffix (..._OUTSIDE_CUTS_<n>) and are intentionally
     excluded, since a nested hatch lid legitimately sits inside its parent's window.
+    CNC-05: problems found by the caller (parts placed past a sheet edge) fail it too.
     """
+    problems = list(extra_problems or [])
     if not isinstance(master_svg, str) or "<svg" not in master_svg:
+        if problems:
+            return False, "LAYOUT CHECK FAILED:\n  - " + "\n  - ".join(problems)
         return True, "Verification skipped (no master layout to check)."
 
     parts = {}
-    problems = []
     for d, tf, pid in re.findall(
             r'<path d="([^"]*)" [^>]*transform="([^"]*)" id="(\w+_OUTSIDE_CUTS)"', master_svg):
         # CNC-01: a part's outside cut must be one closed outline. A second outline on the
@@ -2054,7 +2073,7 @@ def generate_back_panel_parts(version):
     
     if CONFIG.get('CLEATS_ENABLED', True):
         # Calculate Cleat Width (Same logic as generate_french_cleats)
-        cleat_w = min(width_in * 0.80, 48.0)
+        cleat_w = min(width_in * 0.80, CLEAT_MAX_LEN_IN)  # CNC-05: was 48.0, past the sheet margin
         
         # Vertical Position: "1/3 of the way from the top"
         # SVG Origin is Top-Left. 
@@ -2259,7 +2278,7 @@ def generate_french_cleats(version):
     # "width = 80% of the total width of Back Panel"
     # Back Panel width IS Total Width (minus rabbet in theory, but here "Total Width of Back Panel" usually implies the part width).
     # Back Panel Part Width = CONFIG['TOTAL_WIDTH'].
-    cleat_w = min(width_in * 0.80, 48.0)
+    cleat_w = min(width_in * 0.80, CLEAT_MAX_LEN_IN)  # CNC-05: was 48.0, past the sheet margin
     cleat_h = 4.0 # Fixed 4 inches high
     
     canvas_w = cleat_w + (2 * MARGIN_INCHES)
@@ -3416,7 +3435,8 @@ class CarbideOptimizedApp(tk.Tk):
                 cleat_data['box_cleat_files'] = validate_part_files(cleat_data['box_cleat_files'], "CLEAT_BOX")
                 cleat_data['svg_contents'] = validate_part_files(cleat_data['svg_contents'], "CLEAT_CONTENTS")
 
-            master_svgs = generate_master_carbide_layout(next_ver, files_front, files_back, f_top, f_bot, f_left, f_right, geom_back, cleat_data)
+            layout_problems = []  # CNC-05: parts placed past a sheet edge, from the packer
+            master_svgs = generate_master_carbide_layout(next_ver, files_front, files_back, f_top, f_bot, f_left, f_right, geom_back, cleat_data, problems=layout_problems)
             
             if master_svgs is None:
                 print("CRITICAL ERROR: generate_master_carbide_layout returned None!")
@@ -3465,7 +3485,7 @@ class CarbideOptimizedApp(tk.Tk):
                 json.dump(CONFIG, f, indent=4) # Indent for readability
 
             # VERIFY DIMENSIONS (M1 FIX: check the actual master layout, not a stub)
-            passed, report = verify_dimensions(all_files.get(master_key), CONFIG)
+            passed, report = verify_dimensions(all_files.get(master_key), CONFIG, extra_problems=layout_problems)
 
             warn_block = ""
             if gen_warnings:
