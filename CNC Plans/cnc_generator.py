@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.34
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.35
 # ========================================
-# PRODUCTION RELEASE v1.34  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.35  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -393,7 +393,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.34"
+APP_VERSION = "1.35"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -2523,15 +2523,14 @@ class ScrollableFrame(tk.Frame):
 class CarbideOptimizedApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("CNC Plywood Parametric Box Maker")
+        self.title(f"CNC Plywood Parametric Box Maker v{APP_VERSION}")
         self.geometry("900x850") 
         self.configure(bg="#f0f0f0")
         self.resizable(True, True) # User asked for resizable: "resizable in case it is used on a different machine"
 
-        # Smart default path logic
-        target_path = Path("/Users/joelsilverman/Desktop/2026 Files/26-005 CNC Box Creator/CNC Plans/")
+        # Default output next to the script, wherever it lives (January v1.28)
         current_path = Path(__file__).resolve().parent
-        default_out = str(target_path) if current_path == target_path.resolve() else str(current_path)
+        default_out = str(current_path)
 
         # Settings file path
         self.settings_file = current_path / "cnc_generator_settings.json"
@@ -2861,14 +2860,10 @@ class CarbideOptimizedApp(tk.Tk):
         self.make_row_with_units(b_hatch_frame, 1, "Width", self.vars['bottom_hatch_w'], self.vars['bottom_hatch_w_unit'])
         self.make_row_with_units(b_hatch_frame, 3, "X Position %", self.vars['bottom_hatch_x_pct'], None)
         
-        # Status Label (10pt Futura #ffe102 -> Darker background or visible on light?)
-        # User specified #ffe102 (Yellow). On #f0f0f0 (Light Grey) this is hard to read.
-        # But user requested valid hex #ffe102. I will use a darker label bg or outline? No, just FG. 
-        # Actually #ffe102 is very bright yellow. I'll add a dark background to the label so it's readable?
-        # "presented under the entry box should state in 10 pt Futura text #ffe102"
-        # I'll put it in a dark frame or label bg.
+        # Status Label: black since January v1.28 (the requested #ffe102 yellow was unreadable
+        # on the light grey background).
         status_lbl = tk.Label(b_hatch_frame, textvariable=self.vars['bottom_hatch_x_status'],
-                              font=("Futura", 10), fg="#ffe102", padx=5, pady=2)
+                              font=("Futura", 10), fg="#000000", padx=5, pady=2)
         status_lbl.grid(row=4, column=0, columnspan=4, sticky="w", pady=(5,0))
         
         # Update initially
@@ -3101,7 +3096,7 @@ class CarbideOptimizedApp(tk.Tk):
             
             if start_x < 0: start_x = 0 # Clamp for display logic safety? No user wants exact.
             
-            self.vars['bottom_hatch_x_status'].set(f"Access Hatch is between\n{start_x:.2f}\" and {end_x:.2f}\" from the Left Corner of the Frame")
+            self.vars['bottom_hatch_x_status'].set(f"Access hatch spans between {start_x:.2f}\" and {end_x:.2f}\" from the left corner of the frame")
         except:
             self.vars['bottom_hatch_x_status'].set("")
 
@@ -3162,8 +3157,12 @@ class CarbideOptimizedApp(tk.Tk):
             def get_mm(var_name, unit_var_name=None):
                 val_str = self.vars[var_name].get().strip()
                 if not val_str: return 0.0
-                val = float(val_str)
-                
+                try:
+                    val = float(val_str)
+                except ValueError:
+                    # January v1.29: name the field instead of a bare conversion error.
+                    raise ValueError(f"Invalid value for '{var_name}': '{val_str}'. Please check for typos (like double decimals).")
+
                 # If no unit var, assume it's fixed (Router Bit is fixed inches per UI)
                 if unit_var_name is None:
                     # Special case: Router Bit is in inches
