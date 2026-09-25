@@ -100,6 +100,7 @@ def run_test():
     test_cnc02_flush_fingers()
     test_cnc02_rear_hatch()
     test_cnc02_bottom_hatch()
+    test_cnc04_nested_lid_routing()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -233,6 +234,20 @@ def test_cnc02_bottom_hatch():
     ok, report = C.verify_dimensions(svg, C.CONFIG)
     assert ok, report
     print("  PASS [CNC-02 bottom hatch] 3.395 in opening, 0.6 in lip, rail/lid holes concentric, NEMA 17 mount routed")
+
+
+
+def test_cnc04_nested_lid_routing():
+    # CNC-04: a rear-hatch lid nested in the front window keeps its toolpath types:
+    # one outside cut (the lid outline), one pocket (its step) and four holes.
+    cfg = copy.deepcopy(BASE)
+    cfg.update({"HATCH_ENABLED": True, "HATCH_WIDTH_PCT": 50.0, "HATCH_HEIGHT_PCT": 33.0,
+                "HATCH_RAISE_IN": 0.0, "WINDOW_ENABLED": True})
+    svg = build(cfg)
+    names = [re.search(r'data-name="([^"]*)"', l).group(1)
+             for l in svg.splitlines() if re.search(r'id="FRONT_\w+_\d+"', l)]
+    assert names.count("OUTSIDE CUTS") == 1 and names.count("RABBET") == 1 and names.count("HOLE") == 4, names
+    print("  PASS [CNC-04] nested lid: 1 outside cut, 1 pocket step, 4 holes")
 
 
 if __name__ == "__main__":

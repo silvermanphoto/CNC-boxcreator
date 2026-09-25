@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.36
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.37
 # ========================================
-# PRODUCTION RELEASE v1.36  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.37  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -388,7 +388,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.36"
+APP_VERSION = "1.37"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -1896,13 +1896,15 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
                 else:
                     h_tf = f'translate({f(global_x)}, {f(global_y)}) translate({f(off_x)}, {f(off_y)}) translate(-2.0, -2.0)'
                 
-                viz_color = "#ff00ff" # Magenta for Hatch Lid (Outside Cut)
-                
-                # Naming for Hatch
-                element_base_name = "OUTSIDE CUTS"
-
                 raw_lines = flatten_content_elements(h_data['svg_content'], h_tf)
                 for line in raw_lines:
+                    # CNC-04: route by stroke colour, as the H1 fix does for packed lids, so
+                    # the lid's step and screw holes are not labelled as outside cuts.
+                    stroke = _stroke_of(line)
+                    element_base_name = ("HOLE" if stroke == COLOR_HOLES else
+                                         "RABBET" if stroke in (COLOR_RABBETS, COLOR_POCKETS) else
+                                         "OUTSIDE CUTS")
+                    viz_color = buffered_paths[element_base_name]['color']
                     line = re.sub(r'\s+fill="[^"]*"', '', line)
                     line = re.sub(r'\s+stroke="[^"]*"', '', line)
                     line = re.sub(r'\s+stroke-width="[^"]*"', '', line)
