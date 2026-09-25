@@ -102,6 +102,7 @@ def run_test():
     test_cnc02_bottom_hatch()
     test_cnc04_nested_lid_routing()
     test_cnc05_sheet_edges()
+    test_cnc06_bottom_rail_checks()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -280,6 +281,29 @@ def test_cnc05_sheet_edges():
     ok, report = C.verify_dimensions(svg, C.CONFIG, extra_problems=probs)
     assert not ok and "CLEAT_BOX runs past" in report, report
     print("  PASS [CNC-05] both boxes stay on their sheets; cleat capped at 47 in; an overrun fails the check")
+
+
+
+def test_cnc06_bottom_rail_checks():
+    # CNC-06: the bottom access panel (3.395" opening + 0.6" lip each side = 4.595") must fit
+    # the rail's depth less one stock thickness, stay on the rail, and clear the motor pocket;
+    # the motor pocket gets the same depth bound. The saved settings (2.5" deep) must fail.
+    stock_in, rail_w = 0.5984, 14.0 - 2 * 0.5984
+    saved = {"STOCK_THICKNESS": stock_in * 25.4, "TOTAL_WIDTH": 14 * 25.4, "BOX_DEPTH": 2.5 * 25.4,
+             "BOTTOM_HATCH_ENABLED": True, "BOTTOM_HATCH_WIDTH": 76.2, "BOTTOM_HATCH_X_PCT": 40.0,
+             "MOTOR_POCKET_ENABLED": False}
+    msgs = C.validate_bottom_hatch(saved)
+    assert len(msgs) == 1 and "clear between the front and back panels" in msgs[0], msgs
+    deep = dict(saved, BOX_DEPTH=6.1 * 25.4)
+    assert C.validate_bottom_hatch(deep) == [], C.validate_bottom_hatch(deep)
+    assert any("long inside the box" in m for m in C.validate_bottom_hatch(dict(deep, BOTTOM_HATCH_X_PCT=5.0)))
+    on_hatch = dict(deep, MOTOR_POCKET_ENABLED=True, MOTOR_POCKET_X=(0.4 * rail_w + stock_in) * 25.4)
+    assert any("overlaps the motor pocket" in m for m in C.validate_bottom_hatch(on_hatch))
+    clear_of_hatch = dict(deep, MOTOR_POCKET_ENABLED=True, MOTOR_POCKET_X=(0.9 * rail_w + stock_in) * 25.4)
+    assert C.validate_bottom_hatch(clear_of_hatch) == []
+    assert C.validate_motor_pocket(dict(saved, MOTOR_POCKET_ENABLED=True)) == []          # 42 mm in 1.902"
+    assert C.validate_motor_pocket(dict(saved, MOTOR_POCKET_ENABLED=True, BOX_DEPTH=2.0 * 25.4))
+    print("  PASS [CNC-06] saved settings rejected (4.595 in needed, 1.902 in clear); deep box, rail ends and motor pocket checked")
 
 
 if __name__ == "__main__":

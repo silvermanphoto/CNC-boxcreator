@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.38
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.39
 # ========================================
-# PRODUCTION RELEASE v1.38  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.39  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -388,7 +388,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.38"
+APP_VERSION = "1.39"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -976,6 +976,56 @@ def bottom_hatch_lid_size_in():
     gg_in = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.5))
     return (bh_w_in + 2 * BOTTOM_HATCH_FLANGE_IN - gg_in,
             BOTTOM_HATCH_HEIGHT_IN + 2 * BOTTOM_HATCH_FLANGE_IN - gg_in)
+
+def validate_motor_pocket(cfg):
+    """CNC-06: the bottom rail's motor pocket is centred in the rail's depth and must fit
+    between the front and back panels' plugs (stock/2 each). Returns problems as plain
+    sentences for the dialog; empty when it fits or is switched off."""
+    if not cfg.get('MOTOR_POCKET_ENABLED', False):
+        return []
+    stock = convert_to_inches(cfg['STOCK_THICKNESS'])
+    clear = convert_to_inches(cfg['BOX_DEPTH']) - stock
+    pocket = convert_to_inches(cfg.get('MOTOR_POCKET_SIZE', 42.0))
+    if pocket > clear + 1e-9:
+        return [f'the {pocket:.3f}" motor pocket is wider than the {clear:.3f}" of bottom rail '
+                f'left clear between the front and back panels.']
+    return []
+
+def validate_bottom_hatch(cfg):
+    """CNC-06: problems that make the bottom access panel unbuildable, as plain sentences
+    for the dialog; empty when it fits or is switched off. Its shelf (opening plus lip)
+    must fit the bottom rail's depth less one stock thickness (each panel's plug takes
+    stock/2), stay within the rail body's length, and clear the motor pocket."""
+    if not cfg.get('BOTTOM_HATCH_ENABLED', False):
+        return []
+    stock = convert_to_inches(cfg['STOCK_THICKNESS'])
+    clear = convert_to_inches(cfg['BOX_DEPTH']) - stock
+    rail_w = convert_to_inches(cfg['TOTAL_WIDTH']) - 2 * stock
+    bh_w = convert_to_inches(cfg.get('BOTTOM_HATCH_WIDTH', 0))
+    if bh_w <= 0:
+        return ['its width is blank or zero.']
+    problems = []
+    shelf_w = bh_w + 2 * BOTTOM_HATCH_FLANGE_IN
+    shelf_h = BOTTOM_HATCH_HEIGHT_IN + 2 * BOTTOM_HATCH_FLANGE_IN
+    if shelf_h > clear + 1e-9:
+        problems.append(f'it needs {shelf_h:.3f}" of the bottom rail\'s depth (the {BOTTOM_HATCH_HEIGHT_IN}" '
+                        f'opening plus a {BOTTOM_HATCH_FLANGE_IN}" lip on each side), but only {clear:.3f}" '
+                        f'is clear between the front and back panels.')
+    center_x = rail_w * cfg.get('BOTTOM_HATCH_X_PCT', 50.0) / 100.0
+    left, right = center_x - shelf_w / 2.0, center_x + shelf_w / 2.0
+    if left < -1e-9 or right > rail_w + 1e-9:
+        problems.append(f'its lip would run from {left:.3f}" to {right:.3f}" along a bottom rail that is '
+                        f'{rail_w:.3f}" long inside the box.')
+    if cfg.get('MOTOR_POCKET_ENABLED', False):
+        # Same origin as generate_rail_parts: the pocket centre sits MOTOR_POCKET_X from the
+        # rail's outer end, one stock thickness left of the rail body. Both features are
+        # centred in the rail's depth, so they collide whenever their lengths overlap.
+        m_c = convert_to_inches(cfg.get('MOTOR_POCKET_X', 0)) - stock
+        m_half = convert_to_inches(cfg.get('MOTOR_POCKET_SIZE', 42.0)) / 2.0
+        if m_c + m_half > left and m_c - m_half < right:
+            problems.append(f'it overlaps the motor pocket, which spans {m_c - m_half:.3f}" to '
+                            f'{m_c + m_half:.3f}" along the same rail.')
+    return problems
 
 def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
     """Generate rail SVGs (PERIMETER, HOLES, POCKETS)."""
@@ -3249,33 +3299,10 @@ class CarbideOptimizedApp(tk.Tk):
                     CONFIG['BOTTOM_HATCH_WIDTH'] = bh_w
                     CONFIG['BOTTOM_HATCH_HEIGHT'] = bh_h
                     CONFIG['BOTTOM_HATCH_X_PCT'] = bh_x_pct
-                    
-                    # Validate Height Constraint
-                    # Max Height = Box Depth - Front Rabbet Depth - Back Rabbet Depth - 0.5" (approx 12.7mm)
-                    # Note: Using calculated depths.
-                    box_depth_mm = convert_to_mm(float(self.vars['depth'].get()), self.vars['depth_unit'].get())
-                    
-                    # Rabbet Depths (Step Depth)
-                    step_depth_mm = CONFIG['STOCK_THICKNESS'] / 2.0
-                    
-                    # 0.5 inches in mm
-                    buffer_mm = 12.7
-                    
-                    max_h_mm = box_depth_mm - (2 * step_depth_mm) - buffer_mm
-                    
-                    if bh_h > max_h_mm:
-                        print(f"WARNING: Bottom Hatch Height ({bh_h:.2f}mm) exceeds safe limit ({max_h_mm:.2f}mm). It might clash with panels.")
-                    
-                    # Validate Width Constraint (90% of Rail Width)
-                    total_w_mm = convert_to_mm(float(self.vars['width'].get()), self.vars['width_unit'].get())
-                    stock_mm = CONFIG['STOCK_THICKNESS']
-                    rail_w_mm = total_w_mm - (2 * stock_mm)
-                    
-                    if bh_w > (rail_w_mm * 0.9):
-                        print(f"WARNING: Bottom Hatch Width ({bh_w:.2f}mm) exceeds 90% of Rail Width ({rail_w_mm * 0.9:.2f}mm).")
-                        
+                    # CNC-06: size and position are checked by validate_bottom_hatch below,
+                    # once the box dimensions are in CONFIG (the old checks only printed).
                 except Exception as e:
-                    print(f"Invalid Bottom Hatch Input: {e}")
+                    gen_warnings.append(f"Bottom access panel left out: {e}")
                     CONFIG['BOTTOM_HATCH_ENABLED'] = False
 
 
@@ -3365,6 +3392,15 @@ class CarbideOptimizedApp(tk.Tk):
                     CONFIG['MOTOR_POCKET_X'] = 0.4155 * photograph_width  # unverified legacy fallback
             else:
                 CONFIG['MOTOR_POCKET_X'] = 0.4155 * photograph_width  # unverified legacy fallback
+
+            # CNC-06: the motor pocket and the bottom access panel must fit the bottom rail.
+            # If one does not, say why in the dialog and leave it out of this run.
+            for problem in validate_motor_pocket(CONFIG):
+                gen_warnings.append("Motor pocket left out: " + problem)
+                CONFIG['MOTOR_POCKET_ENABLED'] = False
+            for problem in validate_bottom_hatch(CONFIG):
+                gen_warnings.append("Bottom access panel left out: " + problem)
+                CONFIG['BOTTOM_HATCH_ENABLED'] = False
 
             out_path = Path(raw_out)
             out_path.mkdir(parents=True, exist_ok=True)
