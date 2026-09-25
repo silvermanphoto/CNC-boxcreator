@@ -55,7 +55,8 @@ cnc_generator.CONFIG['FRONT_RIM_WIDTH_M'] = rim_w_in * 0.0254
 # User spec: 4.559 x 3.559 in
 cnc_generator.CONFIG['BOTTOM_HATCH_ENABLED'] = True
 cnc_generator.CONFIG['BOTTOM_HATCH_WIDTH'] = 4.559 * 25.4
-cnc_generator.CONFIG['BOTTOM_HATCH_HEIGHT'] = 3.559 * 25.4
+# Height is fixed at 3.395 in since January v1.28; the Blender script reads this key.
+cnc_generator.CONFIG['BOTTOM_HATCH_HEIGHT'] = cnc_generator.BOTTOM_HATCH_HEIGHT_IN * 25.4
 cnc_generator.CONFIG['BOTTOM_HATCH_X_PCT'] = 50.0
 
 # Cleats (Default Enabled)

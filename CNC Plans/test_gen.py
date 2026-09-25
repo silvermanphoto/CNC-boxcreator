@@ -99,6 +99,7 @@ def run_test():
     test_cnc01_no_lid_in_back_panel()
     test_cnc02_flush_fingers()
     test_cnc02_rear_hatch()
+    test_cnc02_bottom_hatch()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -183,6 +184,55 @@ def test_cnc02_rear_hatch():
     hole_d = re.search(r'<path d="([^"]*)"[^>]*id="BACK_HOLE"', svg).group(1)
     assert hole_d.count("M ") == 4, "the four lip holes did not reach the back panel's hole path"
     print("  PASS [CNC-02 rear hatch] 0.64 in lip, 9/32 in panel holes, concentric 0.2 in lid holes, routed to HOLE")
+
+
+
+def path_of(svg, pid):
+    m = re.search(r'<path d="([^"]*)"[^>]*id="' + pid + '"', svg)
+    return m.group(1) if m else ""
+
+
+def test_cnc02_bottom_hatch():
+    # CNC-02 port of the January v1.27-v1.28 bottom access panel: opening fixed at 3.395"
+    # high, 0.6" lip, 9/32" rail holes 1/4" in from the lip edge, 0.2" lid holes on the same
+    # centres, NEMA 17 mount in the lid; the July H7 lid fit clearance is kept.
+    cfg = copy.deepcopy(BASE)
+    cfg.update({"BOX_DEPTH": 6.1 * 25.4, "FIT_TOLERANCE": 0.4, "BOTTOM_HATCH_ENABLED": True,
+                "BOTTOM_HATCH_WIDTH": 3.0 * 25.4, "BOTTOM_HATCH_HEIGHT": 76.12, "BOTTOM_HATCH_X_PCT": 50.0})
+    C.CONFIG.clear(); C.CONFIG.update(cfg)
+    fbot, _ = C.generate_rail_parts("BOTTOM_RAIL", True, True, "T")
+    cut, lid = fbot["BOTTOM_RAIL_HATCH_CUT.vT.svg"], fbot["BOTTOM_RAIL_HATCH_LID.vT.svg"]
+    (ox, oy, ow, oh), (sx, sy, sw, sh) = rects(cut)
+    stock_in = cfg["STOCK_THICKNESS"] / 25.4
+    rail_w = cfg["TOTAL_WIDTH"] / 25.4 - 2 * stock_in
+    assert abs(oh - 3.395) < 2e-4 and abs(ow - 3.0) < 2e-4, (ow, oh)
+    assert abs((ox + ow / 2) - (2.0 + rail_w * 0.5)) < 2e-4, "opening not centred on the rail body"
+    assert abs((ox - sx) - 0.6) < 2e-4 and abs((sh - oh) / 2 - 0.6) < 2e-4, "lip is not 0.6 in"
+    holes = circles(cut)
+    assert len(holes) == 4 and all(abs(r - 0.140625) < 2e-4 for _, _, r in holes), holes
+    assert abs(holes[0][0] - (sx + 0.390625)) < 2e-4 and abs(holes[0][1] - (sy + 0.390625)) < 2e-4
+    fit = 0.4 / 25.4
+    (lx, ly, lw, lh), (px, py, pw, ph) = rects(lid)
+    assert abs(lw - (sw - fit)) < 2e-4 and abs(lh - (sh - fit)) < 2e-4 and abs((px - lx) - 0.6) < 2e-4
+    lid_c = circles(lid)
+    lid_holes = [c for c in lid_c if abs(c[2] - 0.1) < 2e-4]
+    mount = [c for c in lid_c if abs(c[2] - 1.75 / 25.4) < 2e-4]
+    assert len(lid_holes) == 4 and len(mount) == 4, lid_c
+    dx, dy = sx + fit / 2 - lx, sy + fit / 2 - ly      # lid centred in the shelf
+    for (hx, hy, _), (qx, qy, _) in zip(holes, lid_holes):
+        assert abs(hx - (qx + dx)) < 3e-4 and abs(hy - (qy + dy)) < 3e-4, "lid and rail holes not concentric"
+    cx, cy = lx + lw / 2, ly + lh / 2
+    assert all(abs(abs(mx - cx) - 15.5 / 25.4) < 2e-4 and abs(abs(my - cy) - 15.5 / 25.4) < 2e-4 for mx, my, _ in mount)
+    nema = re.findall(r'<path d="([^"]*)" fill="none" stroke="' + C.COLOR_POCKETS + '"', lid)
+    assert len(nema) == 1 and nema[0].count("A ") == 4, "NEMA 17 pocket path missing"
+    svg = build(cfg)
+    assert path_of(svg, "BOTTOM_HATCH_LID_OUTSIDE_CUTS").count("M ") == 1
+    assert path_of(svg, "BOTTOM_HATCH_LID_RABBET").count("M ") == 2, "lid step + motor pocket should be pockets"
+    assert path_of(svg, "BOTTOM_HATCH_LID_HOLE").count("M ") == 8, "4 lid holes + 4 motor holes"
+    assert path_of(svg, "BOTTOM_HOLE").count("M ") == 4, "the rail's four lip holes"
+    ok, report = C.verify_dimensions(svg, C.CONFIG)
+    assert ok, report
+    print("  PASS [CNC-02 bottom hatch] 3.395 in opening, 0.6 in lip, rail/lid holes concentric, NEMA 17 mount routed")
 
 
 if __name__ == "__main__":

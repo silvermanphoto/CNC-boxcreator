@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.32
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.33
 # ========================================
-# PRODUCTION RELEASE v1.32  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.33  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -393,12 +393,25 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.32"
+APP_VERSION = "1.33"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
 REAR_HATCH_PANEL_HOLE_DIA_IN = 0.28125  # 9/32" holes in the back panel's lip, centred in it
 REAR_HATCH_LID_HOLE_DIA_IN = 0.2        # holes in the lid, on the same centres
+
+# Bottom access panel (January v1.27-v1.28 spec).
+BOTTOM_HATCH_HEIGHT_IN = 3.395          # fixed opening height across the rail's depth (v1.28)
+BOTTOM_HATCH_FLANGE_IN = 0.6            # lip width around the opening
+BOTTOM_HATCH_RAIL_HOLE_DIA_IN = 0.28125 # 9/32" holes in the rail's lip
+BOTTOM_HATCH_LID_HOLE_DIA_IN = 0.2      # holes in the lid, on the same centres
+BOTTOM_HATCH_HOLE_INSET_IN = 0.25       # from the lip's outer edge to the hole's edge
+# NEMA 17 motor mount cut into the bottom lid (v1.28)
+NEMA17_BODY_MM = 42.5                   # square body, with clearance
+NEMA17_CORNER_R_MM = 4.0
+NEMA17_MOUNT_SPACING_MM = 31.0          # hole pattern, square
+NEMA17_MOUNT_HOLE_DIA_MM = 3.5          # M3 clearance, through
+NEMA17_WIRE_CHANNEL_IN = 0.5            # 0.5" x 0.5" wiring channel off the body's top edge
 
 
 
@@ -961,6 +974,14 @@ def generate_front_bezel_parts(version):
     
     return files, geometry_data
 
+def bottom_hatch_lid_size_in():
+    """Outer size (inches) of the bottom-hatch lid: opening plus the lip on each side, less
+    the fit clearance (H7). Shared by the rail generator and the master layout's packing."""
+    bh_w_in = convert_to_inches(CONFIG.get('BOTTOM_HATCH_WIDTH', 0))
+    gg_in = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.5))
+    return (bh_w_in + 2 * BOTTOM_HATCH_FLANGE_IN - gg_in,
+            BOTTOM_HATCH_HEIGHT_IN + 2 * BOTTOM_HATCH_FLANGE_IN - gg_in)
+
 def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
     """Generate rail SVGs (PERIMETER, HOLES, POCKETS)."""
     # v48 UPDATE: Rails DO NOT have rabbets.
@@ -1078,88 +1099,63 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
     viz_elements.append(create_svg_footer())
     files[f"VISUALIZATION_{rail_name}.v{version}.svg"] = "\n".join(viz_elements)
     
-    # BOTTOM HATCH LOGIC (v1.22)
+    # BOTTOM HATCH LOGIC (January v1.27-v1.28 spec, with the July H7 lid fit kept)
     if rail_name == "BOTTOM_RAIL" and CONFIG.get('BOTTOM_HATCH_ENABLED', False):
         try:
             bh_w_mm = CONFIG.get('BOTTOM_HATCH_WIDTH', 0)
-            bh_h_mm = CONFIG.get('BOTTOM_HATCH_HEIGHT', 0)
             bh_x_pct = CONFIG.get('BOTTOM_HATCH_X_PCT', 50.0)
-            
+
             bh_w_in = convert_to_inches(bh_w_mm)
-            bh_h_in = convert_to_inches(bh_h_mm)
-            
-            # Position: Center X calculated from Rail Width
-            # Rail Width (Physical) = rail_w_in (Total Width - 2*Stock)
-            # 0 is Left Edge of Rail.
-            
+            bh_h_in = BOTTOM_HATCH_HEIGHT_IN   # fixed since January v1.28 (no Height field)
+
+            # Position: the centre is X% along the rail body (the box's inside width),
+            # measured from the inside face of the left side. `ax` is already that point:
+            # the corner fingers protrude to the LEFT of ax. January v1.27 also added one
+            # stock thickness here on the belief that ax was the finger tip; that would
+            # shift the hatch a second time and part it from the 3D preview, so the extra
+            # offset is not carried over.
             center_x = rail_w_in * (bh_x_pct / 100.0)
-            
+
             # Y Position: Centered in Depth (rail_h_in = Box Depth)
             center_y = rail_h_in / 2.0
-            
+
             bx = ax + center_x - (bh_w_in / 2.0)
             by = ay + center_y - (bh_h_in / 2.0)
-            
+
             # Hatch Geometry
-            # 1. CUT (Opening & Shelf) on the Rail
-            # Cut Opening: Through Hole (Perimeter Color)
-            # Shelf: Pocket (Rabbet Color)
-            # Note: Bottom Access Panel usually has the FLANGE on the LID?
-            # Or on the Rail?
-            # Standard "Lid": Lid has the Flange (Step). Rail has a simple Opening + Recess?
-            # Rear Logic: Rail/Panel has "Opening"(Through) and "Shelf"(Pocket).
-            # Lid has "Perimeter"(Outer) and "Rabbet"(Step).
-            # Yes.
-            
-            st_in = convert_to_inches(CONFIG['STOCK_THICKNESS'])
+            # 1. CUT on the rail: through opening, shelf (pocket) around it, and four screw
+            #    holes in the lip. Rail/Panel has "Opening"(Through) and "Shelf"(Pocket);
+            #    Lid has "Perimeter"(Outer) and "Rabbet"(Step).
             gg_in = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.5))  # H5 FIX: was GLUE_GAP (never set)
-            flange_w = (st_in / 2.0) - gg_in
-            
-            # Clamp flange
-            if flange_w < 0.05: flange_w = 0.05
-            
-            # Opening (Through)
-            # Shelf (Pocket around opening)
+            flange_w = BOTTOM_HATCH_FLANGE_IN
+
             shelf_x = bx - flange_w
             shelf_y = by - flange_w
             shelf_w = bh_w_in + (2 * flange_w)
             shelf_h = bh_h_in + (2 * flange_w)
-            
+
+            rail_r = BOTTOM_HATCH_RAIL_HOLE_DIA_IN / 2.0
+            lid_r = BOTTOM_HATCH_LID_HOLE_DIA_IN / 2.0
+            # Holes sit 1/4" in from the lip's outer edge to the hole's edge.
+            center_offset = BOTTOM_HATCH_HOLE_INSET_IN + rail_r
+
             hatch_elements = []
             hatch_elements.append(create_svg_header(canvas_w, canvas_h, f"{rail_name}_HATCH_CUT"))
-            
-            # Pocket (Shelf) - Defined FIRST? Order matters for visuals, but for CAM it's by layer.
-            # "BOTTOM_RAIL_HATCH_CUT" -> Mapped to 'CONTOUR (Inside)'?
-            # Wait, previously `BACK_PANEL_HATCH_CUT` mapped to `CONTOUR (Inside)`.
-            # That implies we cut the INNER hole?
-            # NO. `HATCH_CUT` file contained BOTH Rects.
-            # "Contour (Inside)" on the OUTER Shelf Rect would result in a Hole of Shelf Size. That's wrong.
-            # "Pocket" of the area between Outer and Inner is correct.
-            # "Inside Contour" of Inner Rect = Hole.
-            # If we map "HATCH_CUT" file to "CONTOUR (Inside)", usually we want the Through Hole.
-            # But we also need the Shelf Pocket.
-            # In `generate_back_panel_parts`:
-            #   cut_elements.append(create_rect(hatch_x, hatch_y, hatch_open_w, hatch_open_h, COLOR_PERIMETER))
-            #   cut_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS))
-            # And `get_layer_type_v11` mapped `HATCH_CUT` to `CONTOUR (Inside)`.
-            # This is ambiguous for CAM. Usually user separates them.
-            # But the user logic "addition of a female square rabbet... Inside/Left Contour Path"
-            # Maybe the user implies just ONE cut?
-            # "female square rabbet... on the bottom rail... to be an Inside/Left Contour Path".
-            # This implies cutting the hole with a step? You can't do a step with one contour path unless you seek a specific depth.
-            # If he says "Rabbet", he usually means "Pocket" or "Step".
-            # Let's provide BOTH vectors in the file (Hole and Shelf) so they can choose.
-            
+            # Order matters for the master routing: 0 opening (through), 1 shelf (pocket), then holes.
             hatch_elements.append(create_rect(bx, by, bh_w_in, bh_h_in, COLOR_PERIMETER)) # Through
             hatch_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS)) # Shelf
+            for hx, hy in ((shelf_x + center_offset, shelf_y + center_offset),
+                           (shelf_x + shelf_w - center_offset, shelf_y + center_offset),
+                           (shelf_x + center_offset, shelf_y + shelf_h - center_offset),
+                           (shelf_x + shelf_w - center_offset, shelf_y + shelf_h - center_offset)):
+                hatch_elements.append(create_circle(hx, hy, rail_r, COLOR_HOLES))
             hatch_elements.append(create_svg_footer())
             files[f"{rail_name}_HATCH_CUT.v{version}.svg"] = "\n".join(hatch_elements)
-            
+
             # 2. LID (Separate Part)
             # H7 FIX: shrink the lid outer AND plug by the fit tolerance (gg_in) so the lid
             # drops into the nominal shelf recess. Shelf/opening cut above stay nominal.
-            lid_w = shelf_w - gg_in
-            lid_h = shelf_h - gg_in
+            lid_w, lid_h = bottom_hatch_lid_size_in()   # = shelf size - gg_in
 
             # Lid Canvas
             l_can_w = lid_w + 4.0
@@ -1179,20 +1175,66 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
             lr_y = ly + flange_w
             lid_elements.append(create_rect(lr_x, lr_y, bh_w_in - gg_in, bh_h_in - gg_in, COLOR_RABBETS))
 
-            # Holes (4 corners)
-            hr = 0.1
-            coff = flange_w / 2.0
-            lid_elements.append(create_circle(lx + coff, ly + coff, hr, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + lid_w - coff, ly + coff, hr, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + coff, ly + lid_h - coff, hr, COLOR_HOLES))
-            lid_elements.append(create_circle(lx + lid_w - coff, ly + lid_h - coff, hr, COLOR_HOLES))
-            
+            # Lid holes on the rail holes' centres (smaller diameter). The lid is gg_in
+            # smaller than the shelf, so from its own corner the offset is
+            # center_offset - gg_in/2; centred in the shelf, the holes line up exactly.
+            lid_hole_off = center_offset - (gg_in / 2.0)
+            for hx, hy in ((lx + lid_hole_off, ly + lid_hole_off),
+                           (lx + lid_w - lid_hole_off, ly + lid_hole_off),
+                           (lx + lid_hole_off, ly + lid_h - lid_hole_off),
+                           (lx + lid_w - lid_hole_off, ly + lid_h - lid_hole_off)):
+                lid_elements.append(create_circle(hx, hy, lid_r, COLOR_HOLES))
+
+            # NEMA 17 motor mount, centred on the lid (January v1.28): body pocket with
+            # rounded corners joined to a wiring channel (one closed path, pocket colour),
+            # and four through holes on the mounting pattern. No centre pilot hole.
+            nema_body_in = convert_to_inches(NEMA17_BODY_MM)
+            nema_mount_in = convert_to_inches(NEMA17_MOUNT_SPACING_MM)
+            nema_hole_r_in = convert_to_inches(NEMA17_MOUNT_HOLE_DIA_MM / 2.0)
+            corner_r_in = convert_to_inches(NEMA17_CORNER_R_MM)
+            wire_w_in = NEMA17_WIRE_CHANNEL_IN
+            wire_l_in = NEMA17_WIRE_CHANNEL_IN
+
+            cx = lx + (lid_w / 2.0)
+            cy = ly + (lid_h / 2.0)
+
+            m_left = cx - nema_body_in / 2
+            m_right = cx + nema_body_in / 2
+            m_top = cy - nema_body_in / 2
+            m_bot = cy + nema_body_in / 2
+
+            c_left = cx - wire_w_in / 2
+            c_right = cx + wire_w_in / 2
+            c_top = m_top - wire_l_in
+
+            # Clockwise, starting at the channel's top-left corner
+            path_d = (
+                f"M {f(c_left)} {f(c_top)} "
+                f"L {f(c_right)} {f(c_top)} "
+                f"L {f(c_right)} {f(m_top)} "
+                f"L {f(m_right - corner_r_in)} {f(m_top)} "
+                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_right)} {f(m_top + corner_r_in)} "
+                f"L {f(m_right)} {f(m_bot - corner_r_in)} "
+                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_right - corner_r_in)} {f(m_bot)} "
+                f"L {f(m_left + corner_r_in)} {f(m_bot)} "
+                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_left)} {f(m_bot - corner_r_in)} "
+                f"L {f(m_left)} {f(m_top + corner_r_in)} "
+                f"A {f(corner_r_in)} {f(corner_r_in)} 0 0 1 {f(m_left + corner_r_in)} {f(m_top)} "
+                f"L {f(c_left)} {f(m_top)} "
+                f"Z"
+            )
+            lid_elements.append(create_path(path_d, COLOR_POCKETS))
+
+            m_off = nema_mount_in / 2.0
+            for dx, dy in ((-m_off, -m_off), (m_off, -m_off), (-m_off, m_off), (m_off, m_off)):
+                lid_elements.append(create_circle(cx + dx, cy + dy, nema_hole_r_in, COLOR_HOLES))
+
             lid_elements.append(create_svg_footer())
-            
+
             # We add this to `files` but we want to pack it separately.
             # We'll detect it in `generate_master_carbide_layout` by name "BOTTOM_RAIL_HATCH_LID".
             files[f"{rail_name}_HATCH_LID.v{version}.svg"] = "\n".join(lid_elements)
-            
+
         except Exception as e:
             print(f"Error generating Bottom Hatch: {e}")
 
@@ -1602,18 +1644,9 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
         # Or parse.
         # Let's rely on CONFIG if available, or re-calc standard logic.
         
-        bh_w = CONFIG.get('BOTTOM_HATCH_WIDTH', 0)
-        bh_h = CONFIG.get('BOTTOM_HATCH_HEIGHT', 0)
-        # Convert to inches? Config stored mm from UI input? No, we stored mm.
-        bh_w_in = convert_to_inches(bh_w)
-        bh_h_in = convert_to_inches(bh_h)
-        
-        st_in = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-        gg_in = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.5))  # H5 FIX: was GLUE_GAP (never set)
-        flange_w_in = (st_in / 2.0) - gg_in
-        
-        lid_w_in = bh_w_in + (2 * flange_w_in)
-        lid_h_in = bh_h_in + (2 * flange_w_in)
+        # Same size as the lid drawn in generate_rail_parts (January v1.27-v1.28: fixed
+        # 3.395" opening height and 0.6" lip; H7 fit clearance taken off).
+        lid_w_in, lid_h_in = bottom_hatch_lid_size_in()
         
         lid_files = {b_hatch_lid_file: b_hatch_lid_content}
         parts_to_pack.append(prepare_part("BOTTOM_HATCH_LID", lid_files, lid_w_in, lid_h_in))
@@ -1827,7 +1860,8 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
                         stroke = _stroke_of(line)
                         if stroke == COLOR_HOLES:
                             buffered_paths["HOLE"]['d'].append(d_attr)
-                        elif stroke == COLOR_RABBETS:
+                        elif stroke in (COLOR_RABBETS, COLOR_POCKETS):
+                            # lid step; NEMA 17 motor pocket (January v1.28)
                             buffered_paths["RABBET"]['d'].append(d_attr)
                         else:
                             buffered_paths["OUTSIDE CUTS"]['d'].append(d_attr)
@@ -2823,9 +2857,8 @@ class CarbideOptimizedApp(tk.Tk):
                        bg=BG_COLOR, fg=TEXT_PRIMARY, font=FONT_LABEL, selectcolor="#ffffff",
                        command=self.update_bottom_hatch_status).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0,5))
         
-        # Width, Height, X Pct
+        # Width, X Pct. Height row removed in January v1.28: fixed at BOTTOM_HATCH_HEIGHT_IN.
         self.make_row_with_units(b_hatch_frame, 1, "Width", self.vars['bottom_hatch_w'], self.vars['bottom_hatch_w_unit'])
-        self.make_row_with_units(b_hatch_frame, 2, "Height", self.vars['bottom_hatch_h'], self.vars['bottom_hatch_h_unit'])
         self.make_row_with_units(b_hatch_frame, 3, "X Position %", self.vars['bottom_hatch_x_pct'], None)
         
         # Status Label (10pt Futura #ffe102 -> Darker background or visible on light?)
@@ -3001,7 +3034,7 @@ class CarbideOptimizedApp(tk.Tk):
                 # Bottom Access Panel
                 b_hatch_enabled = self.vars['bottom_hatch_enabled'].get()
                 b_hatch_w = get_inches(self.vars['bottom_hatch_w'], self.vars['bottom_hatch_w_unit'])
-                b_hatch_h = get_inches(self.vars['bottom_hatch_h'], self.vars['bottom_hatch_h_unit'])
+                b_hatch_h = BOTTOM_HATCH_HEIGHT_IN  # fixed since January v1.28
                 b_hatch_x_pct = 0.0
                 try:
                     b_hatch_x_pct = float(self.vars['bottom_hatch_x_pct'].get())
@@ -3194,7 +3227,7 @@ class CarbideOptimizedApp(tk.Tk):
             if CONFIG['BOTTOM_HATCH_ENABLED']:
                 try:
                     bh_w = get_mm('bottom_hatch_w', 'bottom_hatch_w_unit')
-                    bh_h = get_mm('bottom_hatch_h', 'bottom_hatch_h_unit')
+                    bh_h = BOTTOM_HATCH_HEIGHT_IN * 25.4  # fixed since January v1.28 (no Height field)
                     bh_x_pct = float(self.vars['bottom_hatch_x_pct'].get())
                     
                     CONFIG['BOTTOM_HATCH_WIDTH'] = bh_w
