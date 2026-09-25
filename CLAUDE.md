@@ -1,5 +1,7 @@
 # CNC Box Creator — Project Notes
 
+> Open findings from the 2026-09 code review: ~/.claude/overseer/reviews/2026-09/CNC-boxcreator.md. Mention them to Joel at the start of each session; delete this line once none are open.
+
 ## Git and GitHub sync
 
 This repo is synced to a PUBLIC GitHub repository (made public 2026-07-12):
