@@ -96,7 +96,32 @@ def run_test():
     assert ok, f"M1: verify_dimensions failed: {report}"
     print(f"  PASS [M1] verify_dimensions: {report}")
 
+    test_cnc01_no_lid_in_back_panel()
+
     print("ALL ACCEPTANCE TESTS PASSED")
+
+
+def back_outside_d(svg):
+    return re.search(r'<path d="([^"]*)"[^>]*id="BACK_OUTSIDE_CUTS"', svg).group(1)
+
+
+def test_cnc01_no_lid_in_back_panel():
+    # CNC-01: the rear-hatch lid must not also be drawn inside the BACK panel's cell,
+    # whether the lid nests in the front window or is packed as its own part.
+    cfg = copy.deepcopy(BASE)
+    cfg.update({"HATCH_ENABLED": True, "HATCH_WIDTH_PCT": 50.0, "HATCH_HEIGHT_PCT": 33.0, "HATCH_RAISE_IN": 0.0})
+    for win in (True, False):
+        cfg["WINDOW_ENABLED"] = win
+        svg = build(cfg)
+        assert back_outside_d(svg).count("M ") == 1, f"CNC-01: stray outline inside the back panel (window={win})"
+        ok, report = C.verify_dimensions(svg, C.CONFIG)
+        assert ok, f"CNC-01: layout check failed (window={win}): {report}"
+    # The guard itself: a second outline planted on the back panel's outside cut must fail.
+    d = back_outside_d(svg)
+    bad = svg.replace(f'd="{d}"', f'd="{d} M 3 3 h 1 v 1 h -1 z"', 1)
+    ok, report = C.verify_dimensions(bad, C.CONFIG)
+    assert not ok and "separate outlines" in report, f"CNC-01: guard did not fire: {report}"
+    print("  PASS [CNC-01] back panel holds one outline (lid nested and packed); guard rejects a second")
 
 
 if __name__ == "__main__":

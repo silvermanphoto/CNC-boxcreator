@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.26
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.30
 # ========================================
-# PRODUCTION RELEASE v1.26  (fable-review fix pass: C1-C3, H1-H7, M1-M7, L1-L4)
+# PRODUCTION RELEASE v1.30  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+#                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
 # - Extracted Blender/TriVision generation to separate module (blender_generator.py).
@@ -390,6 +391,9 @@ COLOR_RABBETS = "#e09500"    # Orange - rabbet channels
 COLOR_WINDOW = "#af00af"     # Purple - window cutout
 
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
+
+# Shown in the window's corner badge; keep in step with the header above.
+APP_VERSION = "1.30"
 
 
 
@@ -1498,7 +1502,11 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
     
     # Front & Back
     parts_to_pack.append(prepare_part("FRONT", f_front, total_w, total_h))
-    parts_to_pack.append(prepare_part("BACK", f_back, total_w, total_h))
+    # CNC-01: the rear-hatch lid is its own part (packed below or nested in the window);
+    # never render it inside the BACK panel's cell, where it drew a second lid outline,
+    # its step and its screw holes over the panel's top-left corner.
+    f_back_cut = {k: v for k, v in f_back.items() if "HATCH_LID" not in k}
+    parts_to_pack.append(prepare_part("BACK", f_back_cut, total_w, total_h))
     
     # Rails
     # C1 FIX: Horizontal rails carry corner fingers that PROTRUDE `overhang` beyond the
@@ -1900,8 +1908,14 @@ def verify_dimensions(master_svg, config):
         return True, "Verification skipped (no master layout to check)."
 
     parts = {}
+    problems = []
     for d, tf, pid in re.findall(
             r'<path d="([^"]*)" [^>]*transform="([^"]*)" id="(\w+_OUTSIDE_CUTS)"', master_svg):
+        # CNC-01: a part's outside cut must be one closed outline. A second outline on the
+        # same path is stray geometry (it cuts a slot through the part), so fail it.
+        n_outlines = d.count("M ")
+        if n_outlines > 1:
+            problems.append(f"{pid} holds {n_outlines} separate outlines; a part's outside cut must be a single outline.")
         nums = [float(x) for x in re.findall(r'-?\d+\.?\d*', d)]
         if len(nums) < 4:
             continue
@@ -1919,10 +1933,9 @@ def verify_dimensions(master_svg, config):
         xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
         parts[pid] = (min(xs), min(ys), max(xs), max(ys))
 
-    if not parts:
+    if not parts and not problems:
         return True, "Verification: no parts found to check."
 
-    problems = []
     for k, v in parts.items():
         if v[0] < -1e-6 or v[1] < -1e-6:
             problems.append(f"{k} extends off-sheet (min corner {v[0]:.3f}, {v[1]:.3f}).")
@@ -2826,7 +2839,7 @@ class CarbideOptimizedApp(tk.Tk):
                    command=self.run_generation, font=("Lato", 15, "bold")).pack(pady=20)
 
 
-        tk.Label(container, text="v1.26", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")  # L3 FIX: was v1.24, out of sync with header
+        tk.Label(container, text=f"v{APP_VERSION}", font=FONT_VERSION, bg=BG_COLOR, fg=TEXT_HINT).place(relx=1.0, rely=1.0, anchor="se")
 
         # Live Updates
         self._setup_live_preview_updates()
