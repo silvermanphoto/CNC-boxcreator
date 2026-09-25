@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.30
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.31
 # ========================================
-# PRODUCTION RELEASE v1.30  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.31  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -393,7 +393,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.30"
+APP_VERSION = "1.31"
 
 
 
@@ -589,7 +589,8 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
     stock_thk = convert_to_inches(CONFIG['STOCK_THICKNESS'])
     
     # Protrusion set to 0.0 for flush fingers (Manual Roundover does not add length)
-    # Fingers will be exactly stock_thk - fit_tol
+    # Fingers are exactly stock_thk long (flush with the mating side's outer face);
+    # the glue gap is taken from the finger WIDTH only (fit_tol/2 each side).
     protrusion = 0.0
     
     # Canvas definitions required for return
@@ -640,7 +641,8 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
                 # PROUD FINGER (UP)
                 f_start = x_start + (fit_tol / 2.0)
                 f_end = x_end - (fit_tol / 2.0)
-                f_height = (stock_thk + protrusion) - fit_tol
+                # January v1.26 port: length decoupled from the glue gap (flush fit)
+                f_height = (stock_thk + protrusion)
                 
                 # Snap Check? Usually Top/Bottom fingers are not the corner issue, 
                 # but let's be consistent if needed. 
@@ -683,7 +685,8 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
                 if i == count - 1:
                     f_end = bottom_edge_y
                     
-                f_len = (stock_thk + protrusion) - fit_tol
+                # January v1.26 port: length decoupled from the glue gap (flush fit)
+                f_len = (stock_thk + protrusion)
                 path_cmds.append(f"L {f(rx)} {f(f_start)}")
                 path_cmds.append(f"L {f(rx + f_len)} {f(f_start)}")
                 path_cmds.append(f"L {f(rx + f_len)} {f(f_end)}")
@@ -724,7 +727,8 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
             if bottom_type == 'fingers' and is_active:
                 f_start = x_start - (fit_tol / 2.0)
                 f_end = x_end + (fit_tol / 2.0)
-                f_height = (stock_thk + protrusion) - fit_tol
+                # January v1.26 port: length decoupled from the glue gap (flush fit)
+                f_height = (stock_thk + protrusion)
                 path_cmds.append(f"L {f(f_start)} {f(by)}")
                 path_cmds.append(f"L {f(f_start)} {f(by + f_height)}")
                 path_cmds.append(f"L {f(f_end)} {f(by + f_height)}")
@@ -761,7 +765,8 @@ def generate_perimeter_with_fingers(part_name, width_in, height_in, finger_confi
                 if i == count - 1:
                     f_end = top_edge_y
                     
-                f_len = (stock_thk + protrusion) - fit_tol
+                # January v1.26 port: length decoupled from the glue gap (flush fit)
+                f_len = (stock_thk + protrusion)
                 path_cmds.append(f"L {f(lx)} {f(f_start)}")
                 path_cmds.append(f"L {f(lx - f_len)} {f(f_start)}")
                 path_cmds.append(f"L {f(lx - f_len)} {f(f_end)}")
@@ -1514,8 +1519,8 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
     # width alone let neighbours overlap and pushed the leftmost finger off-sheet. Pack on
     # the TRUE width (body + 2*overhang) and stash x_shift so the render transform slides
     # the content right, mapping the leftmost finger tip to the cell origin.
-    fit_tol_in = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.254))
-    overhang = stock_thk - fit_tol_in
+    # Fingers are full stock length (flush fit), so each end overhangs by one stock thickness.
+    overhang = stock_thk
     w_topbot = (total_w - (2 * stock_thk)) + (2 * overhang)
     parts_to_pack.append(prepare_part("TOP", f_top, w_topbot, box_d, extra_id={'x_shift': overhang}))
     parts_to_pack.append(prepare_part("BOTTOM", f_bot, w_topbot, box_d, extra_id={'x_shift': overhang}))

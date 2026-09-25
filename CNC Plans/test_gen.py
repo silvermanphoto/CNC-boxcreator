@@ -97,6 +97,7 @@ def run_test():
     print(f"  PASS [M1] verify_dimensions: {report}")
 
     test_cnc01_no_lid_in_back_panel()
+    test_cnc02_flush_fingers()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -122,6 +123,25 @@ def test_cnc01_no_lid_in_back_panel():
     ok, report = C.verify_dimensions(bad, C.CONFIG)
     assert not ok and "separate outlines" in report, f"CNC-01: guard did not fire: {report}"
     print("  PASS [CNC-01] back panel holds one outline (lid nested and packed); guard rejects a second")
+
+
+
+def test_cnc02_flush_fingers():
+    # CNC-02 port of the January v1.26 flush fit: finger length is the full stock thickness
+    # (the glue gap comes off the finger width only), and the C1 packing overhang matches it.
+    cfg = copy.deepcopy(BASE)
+    cfg["FIT_TOLERANCE"] = 0.4
+    C.CONFIG.clear(); C.CONFIG.update(cfg)
+    _, top_d = C.generate_rail_parts("TOP_RAIL", True, False, "T")
+    xs = [float(x) for x in re.findall(r'-?\d+\.?\d*', top_d)][0::2]
+    stock_in = cfg["STOCK_THICKNESS"] / 25.4
+    assert abs(min(xs) - (2.0 - stock_in)) < 1e-4, f"finger tip at {min(xs):.4f}, expected {2.0 - stock_in:.4f}"
+    svg = build(cfg)
+    assert_no_overlap(svg, "glue gap 0.4 mm")
+    x0, y0, x1, y1 = part_boxes(svg)["TOP_OUTSIDE_CUTS"]
+    span = max(x1 - x0, y1 - y0)
+    assert abs(span - cfg["TOTAL_WIDTH"] / 25.4) < 1e-3, f"packed TOP rail spans {span:.4f} in"
+    print("  PASS [CNC-02 fingers] finger ends flush at a 0.4 mm glue gap; packed rail spans the outer width")
 
 
 if __name__ == "__main__":
