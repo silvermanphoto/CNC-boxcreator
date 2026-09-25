@@ -98,6 +98,7 @@ def run_test():
 
     test_cnc01_no_lid_in_back_panel()
     test_cnc02_flush_fingers()
+    test_cnc02_rear_hatch()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -142,6 +143,46 @@ def test_cnc02_flush_fingers():
     span = max(x1 - x0, y1 - y0)
     assert abs(span - cfg["TOTAL_WIDTH"] / 25.4) < 1e-3, f"packed TOP rail spans {span:.4f} in"
     print("  PASS [CNC-02 fingers] finger ends flush at a 0.4 mm glue gap; packed rail spans the outer width")
+
+
+
+def rects(svg):
+    return [tuple(float(v) for v in m) for m in re.findall(
+        r'<rect x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)"', svg)]
+
+
+def circles(svg):
+    return [tuple(float(v) for v in m) for m in re.findall(
+        r'<circle cx="([-\d.]+)" cy="([-\d.]+)" r="([-\d.]+)"', svg)]
+
+
+def test_cnc02_rear_hatch():
+    # CNC-02 port of the January v1.26 rear access panel: 0.64" lip, four 9/32" holes centred
+    # in the back panel's lip, 0.2" lid holes on the same centres, lid file named HATCH_LID;
+    # the July H7 lid fit clearance is kept.
+    cfg = copy.deepcopy(BASE)
+    cfg.update({"HATCH_ENABLED": True, "HATCH_WIDTH_PCT": 50.0, "HATCH_HEIGHT_PCT": 33.0,
+                "HATCH_RAISE_IN": 0.0, "FIT_TOLERANCE": 0.4})
+    C.CONFIG.clear(); C.CONFIG.update(cfg)
+    fb, _ = C.generate_back_panel_parts("T")
+    assert "HATCH_LID.vT.svg" in fb and "BACK_PANEL_HATCH_LID.vT.svg" not in fb, sorted(fb)
+    (ox, oy, ow, oh), (sx, sy, sw, sh) = rects(fb["BACK_PANEL_HATCH_CUT.vT.svg"])
+    assert abs((ox - sx) - 0.64) < 2e-4 and abs((sw - ow) / 2 - 0.64) < 2e-4, "lip is not 0.64 in"
+    holes = circles(fb["BACK_PANEL_HATCH_CUT.vT.svg"])
+    assert len(holes) == 4 and all(abs(r - 0.140625) < 2e-4 for _, _, r in holes), holes
+    assert abs(holes[0][0] - (sx + 0.32)) < 2e-4 and abs(holes[0][1] - (sy + 0.32)) < 2e-4
+    (lx, ly, lw, lh), (px, py, pw, ph) = rects(fb["HATCH_LID.vT.svg"])
+    fit = 0.4 / 25.4
+    assert abs(lw - (sw - fit)) < 2e-4 and abs(pw - (ow - fit)) < 2e-4 and abs((px - lx) - 0.64) < 2e-4
+    lid_holes = circles(fb["HATCH_LID.vT.svg"])
+    assert len(lid_holes) == 4 and all(abs(r - 0.1) < 2e-4 for _, _, r in lid_holes), lid_holes
+    dx, dy = sx + fit / 2 - lx, sy + fit / 2 - ly      # lid centred in the shelf
+    for (hx, hy, _), (qx, qy, _) in zip(holes, lid_holes):
+        assert abs(hx - (qx + dx)) < 3e-4 and abs(hy - (qy + dy)) < 3e-4, "lid and panel holes not concentric"
+    svg = build(cfg)
+    hole_d = re.search(r'<path d="([^"]*)"[^>]*id="BACK_HOLE"', svg).group(1)
+    assert hole_d.count("M ") == 4, "the four lip holes did not reach the back panel's hole path"
+    print("  PASS [CNC-02 rear hatch] 0.64 in lip, 9/32 in panel holes, concentric 0.2 in lid holes, routed to HOLE")
 
 
 if __name__ == "__main__":

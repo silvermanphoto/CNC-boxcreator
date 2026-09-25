@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.31
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.32
 # ========================================
-# PRODUCTION RELEASE v1.31  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.32  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -393,7 +393,12 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.31"
+APP_VERSION = "1.32"
+
+# Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
+REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
+REAR_HATCH_PANEL_HOLE_DIA_IN = 0.28125  # 9/32" holes in the back panel's lip, centred in it
+REAR_HATCH_LID_HOLE_DIA_IN = 0.2        # holes in the lid, on the same centres
 
 
 
@@ -1812,6 +1817,8 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
                             buffered_paths["INSIDE WINDOW"]['d'].append(d_attr)   # through opening
                         elif i == 1:
                             buffered_paths["RABBET"]['d'].append(d_attr)          # shelf pocket
+                        elif _stroke_of(line) == COLOR_HOLES:
+                            buffered_paths["HOLE"]['d'].append(d_attr)            # lip screw holes (January spec)
 
                     # H1 FIX: lid files hold mixed cut types (outer perimeter, inner rabbet
                     # step, corner screw holes). Route each element by its stroke colour so
@@ -2051,24 +2058,29 @@ def generate_back_panel_parts(version):
             # BinPacker uses `files` dict keys. We added it above.
             pass
     
-    # HATCH LOGIC (**NEW**)
+    # HATCH LOGIC (January v1.26 spec, with the July H7 lid fit kept)
     hatch_data = None
     if CONFIG.get('HATCH_ENABLED', False):
         # 1. Calc Dimensions
-        # Width/Height defined as % of Total
+        # The width/height percentages set the lid footprint by the pre-v1.26 rule
+        # (opening + a flange of stock/2 - glue gap each side). v1.26 fixed the flange
+        # (rabbet) at REAR_HATCH_FLANGE_IN and shrinks the opening to match, so the shelf
+        # footprint stays where it was.
         w_pct = CONFIG.get('HATCH_WIDTH_PCT', 50.0)
         h_pct = CONFIG.get('HATCH_HEIGHT_PCT', 33.0)
-        
-        hatch_open_w = width_in * (w_pct / 100.0)
-        hatch_open_h = height_in * (h_pct / 100.0)
-        
-        # Flange Calculation (Rabbet Width)
-        # "wide = 1/2 the stock thickness - the glue gap"
+
+        raw_open_w = width_in * (w_pct / 100.0)
+        raw_open_h = height_in * (h_pct / 100.0)
+
         glue_gap = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.254))
-        flange_w = (stock_thk / 2.0) - glue_gap
-        
-        hatch_lid_w = hatch_open_w + (2 * flange_w)
-        hatch_lid_h = hatch_open_h + (2 * flange_w)
+        old_flange_w = (stock_thk / 2.0) - glue_gap
+
+        hatch_lid_w = raw_open_w + (2 * old_flange_w)   # shelf footprint (nominal lid size)
+        hatch_lid_h = raw_open_h + (2 * old_flange_w)
+
+        flange_w = REAR_HATCH_FLANGE_IN
+        hatch_open_w = hatch_lid_w - (2 * flange_w)     # opening shrunk to the fixed flange
+        hatch_open_h = hatch_lid_h - (2 * flange_w)
         
         # 2. Calc Position
         # "Baseline = Stock Thickness + 0.5""
@@ -2114,11 +2126,22 @@ def generate_back_panel_parts(version):
         shelf_h = hatch_open_h + (2 * flange_w)
         
         cut_elements.append(create_rect(shelf_x, shelf_y, shelf_w, shelf_h, COLOR_RABBETS))
+
+        # January v1.26: four 9/32" holes in the back panel's lip, centred in the lip.
+        # (Order matters: index 0 opening, 1 shelf, then holes; see the master routing.)
+        hole_offset = flange_w / 2.0
+        panel_hole_r = REAR_HATCH_PANEL_HOLE_DIA_IN / 2.0
+        for hx, hy in ((shelf_x + hole_offset, shelf_y + hole_offset),
+                       (shelf_x + shelf_w - hole_offset, shelf_y + hole_offset),
+                       (shelf_x + hole_offset, shelf_y + shelf_h - hole_offset),
+                       (shelf_x + shelf_w - hole_offset, shelf_y + shelf_h - hole_offset)):
+            cut_elements.append(create_circle(hx, hy, panel_hole_r, COLOR_HOLES))
+
         cut_elements.append(create_svg_footer())
-        
+
         files[f"BACK_PANEL_HATCH_CUT.v{version}.svg"] = "\n".join(cut_elements)
-        
-        # 4. Generate HATCH_LID (Separate Part)
+
+        # 4. Generate HATCH_LID (Separate Part; file named HATCH_LID since January v1.26)
         # H7 FIX: shrink the lid outer AND plug by FIT_TOLERANCE so the lid drops into the
         # nominal shelf recess (previously line-to-line -> unassemblable). The shelf/opening
         # cut above stays nominal; only the lid loses material.
@@ -2133,7 +2156,7 @@ def generate_back_panel_parts(version):
         ly = MARGIN_INCHES
 
         lid_elements = []
-        lid_elements.append(create_svg_header(lid_canvas_w, lid_canvas_h, f"BACK_PANEL_HATCH_LID"))
+        lid_elements.append(create_svg_header(lid_canvas_w, lid_canvas_h, f"HATCH_LID"))
 
         # Perimeter (Outer Size of Lid, shrunk for fit)
         lid_elements.append(create_rect(lx, ly, lid_out_w, lid_out_h, COLOR_PERIMETER))
@@ -2144,21 +2167,19 @@ def generate_back_panel_parts(version):
         lid_rab_y = ly + flange_w
         lid_elements.append(create_rect(lid_rab_x, lid_rab_y, hatch_open_w - lid_fit, hatch_open_h - lid_fit, COLOR_RABBETS))
 
-        # Corner Holes centered in the rabbet flange
-        corner_offset = flange_w / 2.0
-        lid_hole_r = 0.1 # Standard small hole
-
-        # Top-Left
-        lid_elements.append(create_circle(lx + corner_offset, ly + corner_offset, lid_hole_r, COLOR_HOLES))
-        # Top-Right
-        lid_elements.append(create_circle(lx + lid_out_w - corner_offset, ly + corner_offset, lid_hole_r, COLOR_HOLES))
-        # Bot-Left
-        lid_elements.append(create_circle(lx + corner_offset, ly + lid_out_h - corner_offset, lid_hole_r, COLOR_HOLES))
-        # Bot-Right
-        lid_elements.append(create_circle(lx + lid_out_w - corner_offset, ly + lid_out_h - corner_offset, lid_hole_r, COLOR_HOLES))
+        # January v1.26: 0.2" lid holes on the same centres as the panel holes. The lid is
+        # lid_fit smaller than the shelf, so measured from its own corner the offset is
+        # hole_offset - lid_fit/2; centred in the shelf, the holes line up exactly.
+        lid_hole_off = hole_offset - (lid_fit / 2.0)
+        lid_hole_r = REAR_HATCH_LID_HOLE_DIA_IN / 2.0
+        for hx, hy in ((lx + lid_hole_off, ly + lid_hole_off),
+                       (lx + lid_out_w - lid_hole_off, ly + lid_hole_off),
+                       (lx + lid_hole_off, ly + lid_out_h - lid_hole_off),
+                       (lx + lid_out_w - lid_hole_off, ly + lid_out_h - lid_hole_off)):
+            lid_elements.append(create_circle(hx, hy, lid_hole_r, COLOR_HOLES))
 
         lid_elements.append(create_svg_footer())
-        files[f"BACK_PANEL_HATCH_LID.v{version}.svg"] = "\n".join(lid_elements)
+        files[f"HATCH_LID.v{version}.svg"] = "\n".join(lid_elements)
 
         # Store Data for Nesting Logic (actual lid outer size, post-fit)
         hatch_data = {
