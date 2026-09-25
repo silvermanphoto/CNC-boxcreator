@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.35
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.36
 # ========================================
-# PRODUCTION RELEASE v1.35  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.36  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -40,41 +40,36 @@ import json
 from utils import convert_to_inches, MARGIN_INCHES
 
 # ==============================================================================
-# AUTO-INSTALL DEPENDENCIES
+# DEPENDENCY CHECK
 # ==============================================================================
 def ensure_dependencies():
-    """Auto-install required packages if missing."""
+    """Stop with the real import error if a required package does not load.
+
+    CNC-03: never runs pip. A failed import is as likely to be a broken install (a Python
+    whose XML module cannot load broke matplotlib's Tk backend here) as a missing package,
+    and reinstalling would hide that behind a network call. The Tk backend is checked too,
+    because `import matplotlib` alone can succeed while it fails.
+    """
     if getattr(sys, 'frozen', False):
         return
-    required = ['matplotlib']
-    missing = []
+    required = ['matplotlib', 'matplotlib.backends.backend_tkagg']
+    problems = []
     for pkg in required:
         try:
             __import__(pkg)
-        except ImportError:
-            missing.append(pkg)
+        except ImportError as e:
+            problems.append(f"{pkg}: {e}")
 
-    if missing:
-        # Check if running in a virtual environment
-        in_venv = sys.prefix != sys.base_prefix
-
-        # L4 FIX: do not silently mutate the system Python (the old code retried with
-        # --break-system-packages on a non-venv interpreter, which can corrupt a
-        # Homebrew/managed environment). Inside a venv, install normally; outside one,
-        # stop and tell the user to use the project venv.
-        if not in_venv:
-            print(
-                "Missing dependencies: " + ", ".join(missing) + "\n"
-                "Refusing to install into the system Python. Create/activate the project\n"
-                "virtual environment first, e.g.:\n"
-                "    python3 -m venv venv && source venv/bin/activate && pip install " + " ".join(missing) + "\n"
-                "then re-launch this app with that interpreter.")
-            sys.exit(1)
-
-        print(f"Installing missing dependencies into the active venv: {', '.join(missing)}")
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install'] + missing)
-        print("Dependencies installed. Please restart the application.")
-        sys.exit(0)
+    if problems:
+        print(
+            "Cannot start: a required package failed to import.\n  "
+            + "\n  ".join(problems) + "\n"
+            "Using: " + sys.executable + "\n"
+            "Run the app with the project's own Python. To (re)build it, from the project folder:\n"
+            "    python3 -m venv venv && venv/bin/pip install -r requirements.txt\n"
+            "(use a python.org Python 3, which includes tkinter), then:\n"
+            "    cd \"CNC Plans\" && ../venv/bin/python3 cnc_generator.py")
+        sys.exit(1)
 
 ensure_dependencies()
 
@@ -393,7 +388,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.35"
+APP_VERSION = "1.36"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening

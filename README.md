@@ -33,9 +33,18 @@ cd "CNC Plans"
 ../venv/bin/python3 cnc_generator.py
 ```
 
-Requires Python 3 with tkinter (present in the standard python.org installers).
-The one third-party dependency, matplotlib, installs itself on first launch if
-missing. Settings persist between sessions in `cnc_generator_settings.json`.
+Requires Python 3 with tkinter (present in the standard python.org installers)
+and matplotlib, listed in `requirements.txt`. Create the project's own Python
+environment once, from the project folder:
+
+```
+python3 -m venv venv
+venv/bin/pip install -r requirements.txt
+```
+
+If a package fails to load, the generator prints the import error and stops; it
+never installs anything itself. Settings persist between sessions in
+`cnc_generator_settings.json`.
 
 The generator understands the practical constraints of a real CNC workflow:
 finger widths are recomputed to divide the rail evenly, joint fit tolerance is a
