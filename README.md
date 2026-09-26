@@ -44,7 +44,9 @@ venv/bin/pip install -r requirements.txt
 
 If a package fails to load, the generator prints the import error and stops; it
 never installs anything itself. Settings persist between sessions in
-`cnc_generator_settings.json`.
+`cnc_generator_settings.json`, which stays out of git;
+`cnc_generator_settings.example.json` shows its format. The output folder must
+already exist: choose it with Browse.
 
 The generator understands the practical constraints of a real CNC workflow:
 finger widths are recomputed to divide the rail evenly, joint fit tolerance is a

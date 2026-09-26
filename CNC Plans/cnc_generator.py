@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.39
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.40
 # ========================================
-# PRODUCTION RELEASE v1.39  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.40  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -388,7 +388,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.39"
+APP_VERSION = "1.40"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -2717,6 +2717,11 @@ class CarbideOptimizedApp(tk.Tk):
                     
                 for key, val in data.items():
                     if key in self.vars:
+                        # CNC-08: a remembered output folder that no longer exists (renamed or
+                        # moved) is dropped, so the field keeps the script-folder default.
+                        if key == 'out_folder' and not Path(str(val)).is_dir():
+                            print(f"Saved output folder not found, using the default instead: {val}")
+                            continue
                         # Handle BooleanVar specifically
                         if isinstance(self.vars[key], tk.BooleanVar):
                             self.vars[key].set(bool(val))
@@ -3403,7 +3408,10 @@ class CarbideOptimizedApp(tk.Tk):
                 CONFIG['BOTTOM_HATCH_ENABLED'] = False
 
             out_path = Path(raw_out)
-            out_path.mkdir(parents=True, exist_ok=True)
+            # CNC-08: never create the output folder. A stale or mistyped path used to make a
+            # stray project folder and restart the version numbering at v1.
+            if not out_path.is_dir():
+                raise ValueError(f"The output folder does not exist:\n{out_path}\n\nChoose one with Browse.")
             
             # Save settings on successful generation start
             self.save_settings()

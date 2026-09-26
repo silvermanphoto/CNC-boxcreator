@@ -47,3 +47,8 @@ venv/
 
 # === PyInstaller ===
 *.spec
+
+# === Per-run state ===
+# The generator rewrites this on every run, including an absolute output-folder path;
+# cnc_generator_settings.example.json shows its format.
+CNC Plans/cnc_generator_settings.json

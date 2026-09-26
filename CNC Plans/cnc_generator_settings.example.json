@@ -1,5 +1,4 @@
 {
-    "out_folder": "/Users/joelsilverman/Desktop/2026 Files/26-005 CNC Box Creator/CNC Plans",
     "width": "14",
     "width_unit": "in",
     "height": "14",
@@ -23,7 +22,6 @@
     "cleats_enabled": false,
     "motor_enabled": false,
     "motor_x_val": "",
-    "cable_offset": "3.0",
     "hatch_enabled": false,
     "hatch_width_pct": "85",
     "hatch_height_pct": "25",
@@ -34,6 +32,5 @@
     "bottom_hatch_w_unit": "in",
     "bottom_hatch_h": "76.12",
     "bottom_hatch_h_unit": "mm",
-    "bottom_hatch_x_pct": "40",
-    "bottom_hatch_x_status": ""
+    "bottom_hatch_x_pct": "40"
 }
