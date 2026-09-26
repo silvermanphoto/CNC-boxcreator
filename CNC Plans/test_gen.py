@@ -108,6 +108,7 @@ def run_test():
     test_cnc12_motor_pocket_fits_motor()
     test_cnc13_nesting_clearance()
     test_cnc14_cleat_holes_symmetric()
+    test_cnc19_preview_hatch_matches_cut()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -442,6 +443,36 @@ def test_cnc14_cleat_holes_symmetric():
     _, trivision = blender_scripts(cfg)
     assert "hole_pcts = [0.05, 0.3333333333333333, 0.6666666666666666, 0.95]" in trivision
     print("  PASS [CNC-14] cleat and back-panel holes symmetric (5 %, 1/3, 2/3, 95 %) and meet when mirrored")
+
+
+
+def test_cnc19_preview_hatch_matches_cut():
+    # CNC-19: the Blender preview draws both access panels from the cut files' numbers: the
+    # entered glue gap (not a fixed 0.5 mm), the 0.64" and 0.6" lips, and the rear opening's
+    # size and height above the bottom edge.
+    cfg = copy.deepcopy(BASE)
+    cfg.update({"FIT_TOLERANCE": 0.4, "BOX_DEPTH": 6.1 * 25.4, "HATCH_ENABLED": True,
+                "HATCH_WIDTH_PCT": 50.0, "HATCH_HEIGHT_PCT": 33.0, "HATCH_RAISE_IN": 3.0,
+                "BOTTOM_HATCH_ENABLED": True, "BOTTOM_HATCH_WIDTH": 3.0 * 25.4,
+                "BOTTOM_HATCH_HEIGHT": C.BOTTOM_HATCH_HEIGHT_IN * 25.4, "BOTTOM_HATCH_X_PCT": 50.0})
+    main, _ = blender_scripts(cfg)
+    compile(main, "OPEN_ME_IN_BLENDER", "exec")
+    val = lambda k: float(re.search(r"'" + k + r"': ([-\d.e]+)", main).group(1))
+    fb, _ = C.generate_back_panel_parts("T")
+    (ox, oy, ow, oh), _shelf = rects(fb["BACK_PANEL_HATCH_CUT.vT.svg"])
+    assert abs(val("FIT_TOLERANCE_M") - 0.0004) < 1e-9
+    assert abs(val("REAR_HATCH_FLANGE_M") - 0.64 * 0.0254) < 1e-6 and abs(val("BOTTOM_HATCH_FLANGE_M") - 0.6 * 0.0254) < 1e-6
+    assert abs(val("REAR_HATCH_OPEN_W_M") - ow * 0.0254) < 5e-6 and abs(val("REAR_HATCH_OPEN_H_M") - oh * 0.0254) < 5e-6
+    assert abs(val("REAR_HATCH_OPEN_BOTTOM_M") - (2.0 + 14.0 - (oy + oh)) * 0.0254) < 5e-6
+    assert "glue_gap = 0.0005" not in main
+    # The preview called create_hatch_lid without defining it, so it stopped at the first
+    # access panel; and the bottom rail's outline came back as the motor pocket's.
+    assert main.index("def create_hatch_lid") < main.index("def create_shadowbox_assembly")
+    _, with_hatch = C.generate_rail_parts("BOTTOM_RAIL", True, True, "T")
+    C.CONFIG["BOTTOM_HATCH_ENABLED"] = False
+    _, without = C.generate_rail_parts("BOTTOM_RAIL", True, True, "T")
+    assert with_hatch == without, "the bottom rail's outline changed when the access panel was switched on"
+    print("  PASS [CNC-19] preview uses the entered glue gap, the 0.64/0.6 in lips and the cut rear opening")
 
 
 if __name__ == "__main__":

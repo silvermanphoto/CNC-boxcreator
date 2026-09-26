@@ -3,7 +3,8 @@ Blender Generator Module for CNC Box Creator.
 Handles generation of Blender Python scripts for visualization.
 """
 
-from utils import convert_to_inches, MARGIN_INCHES, CLEAT_MAX_LEN_IN, CLEAT_HOLE_FRACTIONS
+from utils import (convert_to_inches, MARGIN_INCHES, CLEAT_MAX_LEN_IN, CLEAT_HOLE_FRACTIONS,
+                   BOTTOM_HATCH_FLANGE_IN)
 
 def generate_blender_script(version, config, rail_paths, geom_front, geom_back):
     """
@@ -68,7 +69,19 @@ def generate_blender_script(version, config, rail_paths, geom_front, geom_back):
         hx_in = hx - MARGIN_INCHES
         hy_in = hy - MARGIN_INCHES
         holes_m.append((hx_in * 0.0254, hy_in * 0.0254))
-        
+
+    # CNC-19: the access panels are drawn from the cut files' own numbers: the rear panel's
+    # opening, lip and height from the back panel's hatch data, the bottom panel's lip from
+    # utils, and the lids shrunk by the entered glue gap (was a fixed 0.5 mm and the old
+    # stock/2 lip, and the rear opening sat 0.5" lower than the cut).
+    rear = geom_back.get('hatch') or {}
+    fit_tolerance_m = config.get('FIT_TOLERANCE', 0.0) / 1000.0
+    rear_open_w_m = rear.get('open_w', 0.0) * 0.0254
+    rear_open_h_m = rear.get('open_h', 0.0) * 0.0254
+    rear_open_bottom_m = rear.get('open_bottom', 0.0) * 0.0254
+    rear_flange_m = rear.get('flange', 0.0) * 0.0254
+    bottom_flange_m = BOTTOM_HATCH_FLANGE_IN * 0.0254
+
     # Cleat Mounting Holes logic (for Blender)
     # We need to pass the 'cleat_hole_positions' if we want to model them on the back panel
     # The `back_holes` above are user-defined generic holes. 
@@ -162,6 +175,13 @@ CONFIG = {{
     'BOTTOM_HATCH_WIDTH': {config.get('BOTTOM_HATCH_WIDTH', 0.0)},
     'BOTTOM_HATCH_HEIGHT': {config.get('BOTTOM_HATCH_HEIGHT', 0.0)},
     'BOTTOM_HATCH_X_PCT': {config.get('BOTTOM_HATCH_X_PCT', 50.0)},
+    # CNC-19: access-panel geometry from the cut files (meters)
+    'FIT_TOLERANCE_M': {fit_tolerance_m:.6f},
+    'REAR_HATCH_OPEN_W_M': {rear_open_w_m:.6f},
+    'REAR_HATCH_OPEN_H_M': {rear_open_h_m:.6f},
+    'REAR_HATCH_OPEN_BOTTOM_M': {rear_open_bottom_m:.6f},
+    'REAR_HATCH_FLANGE_M': {rear_flange_m:.6f},
+    'BOTTOM_HATCH_FLANGE_M': {bottom_flange_m:.6f},
 }}
 
 # Back panel hole positions (in meters, relative to panel origin at bottom-left)
@@ -624,6 +644,24 @@ def create_rail_with_rabbets(name, vertices, thickness_m, collection,
 # MAIN ASSEMBLY FUNCTION
 # ==============================================================================
 
+def create_hatch_lid(name, w, h, thk, flange_w, collection):
+    """Stepped access-panel lid (CNC-19: the preview called this but never defined it):
+    a w x h plate half the stock thick (the lip, local +Y) over a plug flange_w smaller
+    on every side (the other half, local -Y), centred on the origin."""
+    mesh = bpy.data.meshes.new(name + "_mesh")
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    bm = bmesh.new()
+    plate = bmesh.ops.create_cube(bm, size=1.0)['verts']
+    bmesh.ops.scale(bm, vec=(w, thk/2, h), verts=plate)
+    bmesh.ops.translate(bm, vec=(0, thk/4, 0), verts=plate)
+    plug = bmesh.ops.create_cube(bm, size=1.0)['verts']
+    bmesh.ops.scale(bm, vec=(w - 2*flange_w, thk/2, h - 2*flange_w), verts=plug)
+    bmesh.ops.translate(bm, vec=(0, -thk/4, 0), verts=plug)
+    bm.to_mesh(mesh)
+    bm.free()
+    return obj
+
 def create_shadowbox_assembly():
     """Create the complete Shadowbox assembly with Boolean cuts."""
 
@@ -816,173 +854,6 @@ def create_shadowbox_assembly():
         
         parts['CLEAT_WALL'] = cleat_obj_wall
 
-    # 5c. CREATE BOTTOM ACCESS HATCH (v1.25)
-    if CONFIG.get('BOTTOM_HATCH_ENABLED', False):  # H3 FIX: was == 'True' -> never ran
-        print("[5c/8] Creating Bottom Access Hatch...")
-        # Dims from Config (mm -> in -> m)
-        bh_w_m = CONFIG.get('BOTTOM_HATCH_WIDTH', 0) * 0.001 # stored in mm in CONFIG?
-        bh_h_m = CONFIG.get('BOTTOM_HATCH_HEIGHT', 0) * 0.001
-        # Wait, CONFIG usually stores raw values. Main script converted to inches/meters for passing?
-        # In blender_generator.py:
-        # CONFIG dictionary is populated with PRE-CALCULATED 'IN' and 'M' values in the main script call.
-        # BUT 'BOTTOM_HATCH_WIDTH' might just be the raw value from the UI vars?
-        # Let's check how main script calls it.
-        # Main script passes `CONFIG`.
-        # `CONFIG` contains 'BOTTOM_HATCH_WIDTH' (mm, float).
-        # So we need to convert.
-        
-        bh_w_mm = float(CONFIG.get('BOTTOM_HATCH_WIDTH', 0))
-        bh_h_mm = float(CONFIG.get('BOTTOM_HATCH_HEIGHT', 0))
-        bh_x_pct = float(CONFIG.get('BOTTOM_HATCH_X_PCT', 50.0))
-        
-        bh_w_m = bh_w_mm * 0.001
-        bh_h_m = bh_h_mm * 0.001
-        
-        # Flange logic
-        glue_gap = 0.0005 # approx 0.5mm
-        flange_w = (stock_thk / 2.0) - glue_gap
-        if flange_w < 0.001: flange_w = 0.001
-
-        # Create Hatch Lid Object
-        bh_obj = create_hatch_lid("Box_Bottom_Hatch_Lid", bh_w_m + 2*flange_w, bh_h_m + 2*flange_w, stock_thk, flange_w, collection)
-        
-        # Position
-        # On Bottom Rail.
-        # Bottom Rail Y (Depth) center = 0.
-        # Bottom Rail Z (Height) = -half_h + stock/2.
-        # Hatch is "In" the rail.
-        # Rail Thickness is Z.
-        # Hatch Thickness is Z.
-        # Hatch should be flush with Rail Bottom (Outside)? Or Rail Top (Inside)?
-        # Usually flush with Outside (Bottom).
-        # Rail Bottom Z = -half_h.
-        # Hatch Bottom Z = -half_h.
-        # Hatch constructed centered.
-        # Move to Z = -half_h + stock/2. (Same as Rail Center).
-        
-        # X Position:
-        # bh_x_pct along Rail Width.
-        # Rail Width = Total Width - 2*Stock.
-        # Rail starts at X = -(TotalW/2) + Stock.
-        # 0% = Left Inner Edge. 100% = Right Inner Edge.
-        # Inner Width = TotalW - 2*Stock.
-        # X = (LeftEdge) + (Pct * InnerWidth).
-        # LeftEdge = -(total_w/2) + stock_thk.
-        
-        inner_w = total_w - (2 * stock_thk)
-        bx = (-(total_w/2) + stock_thk) + (bh_x_pct / 100.0 * inner_w)
-        
-        # Y Position: Centered in Depth (Y=0).
-        
-        bh_obj.location = (bx, 0, -half_h + stock_thk/2)
-        # Orientation: create_hatch_lid makes it flat (Y-up thickness).
-        # Wait, create_hatch_lid scales (w, thk/2, h). Y is thickness.
-        # Bottom Rail is flat?
-        # create_rail_with_rabbets for BOTTOM:
-        # profile (Y, Z in SVG -> X, Y in Blender?)
-        # Let's check create_rail_with_rabbets call for BOTTOM.
-        # extrude_axis='Z'.
-        # Profile is in X-Y?
-        # parse_svg_path returns (x, y).
-        # BOTTOM_RAIL SVG: width=TotalW, height=BoxDepth.
-        # So Profile is Top-Down view?
-        # Extruded Z (Thickness).
-        # So Rail is Flat in XY plane.
-        # create_hatch_lid makes thickness in Y.
-        # We need thickness in Z.
-        # Rotate 90 deg on X?
-        bh_obj.rotation_euler = (math.radians(90), 0, 0) 
-        
-        parts['BOTTOM_HATCH'] = bh_obj
-        
-        # Cutout in Bottom Rail
-        # 1. Through Cut (Opening)
-        c1 = create_simple_box("Bottom_Hatch_Cut_Thru", bh_w_m, box_d * 2, bh_h_m, collection) 
-        # Wait, create_simple_box dims: (W, Depth, Height).
-        # We want W=HatchW, D=HatchH? No.
-        # Hatch is aligned X (Width) and Y (Depth of box).
-        # So Cutter W = bh_w_m.
-        # Cutter D (Blender Y) = bh_h_m.
-        # Cutter H (Blender Z) = Thick.
-        c1 = create_simple_box("Bottom_Hatch_Cut_Thru", bh_w_m, bh_h_m, stock_thk*4, collection)
-        c1.location = (bx, 0, -half_h + stock_thk/2)
-        apply_boolean_difference(parts['BOTTOM'], c1, delete_cutter=True)
-        
-        # 2. Pocket Cut (Shelf)
-        # From Outside (Bottom) Face Inwards.
-        # Bottom Face Z = -half_h.
-        # Pocket Depth = stock/2.
-        # Cutter Z = -half_h + stock/4.
-        c2 = create_simple_box("Bottom_Hatch_Cut_Pocket", bh_w_m + 2*flange_w, bh_h_m + 2*flange_w, stock_thk/2, collection)
-        c2.location = (bx, 0, -half_h + (stock_thk * 0.25))
-        apply_boolean_difference(parts['BOTTOM'], c2, delete_cutter=True)
-
-    # 5d. CREATE HATCH (Rear)
-    if CONFIG.get('HATCH_ENABLED', False):  # H3 FIX: was == 'True' -> never ran
-        print("[5d/8] Creating Rear Hatch Lid...")
-        w_pct = float(CONFIG.get('HATCH_WIDTH_PCT', 50.0))
-        h_pct = float(CONFIG.get('HATCH_HEIGHT_PCT', 33.0))
-        
-        h_open_w = (total_w * w_pct / 100.0)
-        h_open_h = (total_h * h_pct / 100.0)
-        
-        # Flange logic
-        glue_gap = 0.0005 # approx
-        flange_w = (stock_thk / 2.0) - glue_gap
-        
-        hatch_obj = create_hatch_lid("Box_Hatch_Lid", h_open_w + 2*flange_w, h_open_h + 2*flange_w, stock_thk, flange_w, collection)
-        
-        # Position
-        # Specified as "Raise" from bottom Baseline.
-        # Baseline = Bottom Frame Inner Edge = -half_h + stock_thk.
-        # Raise comes from config (inches).
-        raise_in = float(CONFIG.get('HATCH_RAISE_IN', 0.0))
-        raise_m = raise_in * 0.0254
-        
-        # Base Z = Bottom of Hatch.
-        # Box Center Z = 0. Range [-H/2, H/2].
-        # Bottom of Box = -H/2.
-        # Top of Bottom Rail = -H/2 + stock_thk.
-        # Hatch Bottom = Top of Rail + Raise.
-        base_z = (-half_h + stock_thk) + raise_m
-        # Hatch Origin is Center?
-        # Logic in `create_hatch_lid` centers it at (0,0,0).
-        # So we move Center to:
-        # X: 0.
-        # Z: Base_Z + (Hatch_Height / 2).
-        # Y: Flush with Inside Face of Back Panel?
-        # Back Panel Inner Face = half_d.
-        # Hatch sits in the hole.
-        hatch_y = half_d
-
-        hatch_obj.location = (0, hatch_y, base_z + (h_open_h/2))
-        hatch_obj.rotation_euler = (math.pi/2, 0, 0) # Rotate to stand up in X-Z plane
-        
-        parts['HATCH'] = hatch_obj
-        
-        # Cutout in Back Panel (Already done by boolean in create_back_panel? No.)
-        # v1.12 had separate cutout logic.
-        # v1.13 `create_back_panel_with_holes` only does screw holes.
-        # We need to Cut the Hatch Opening NOW.
-        
-        # Cut Opening (Through)
-        cutter = create_simple_box("Hatch_Opening_Cut", h_open_w, h_open_h, stock_thk * 3, collection)
-        cutter.location = (0, hatch_y, base_z + (h_open_h/2))
-        apply_boolean_difference(parts['BACK'], cutter, delete_cutter=True)
-        
-        # Cut Flange Pocket (Shelf)
-        # From Outside Face inwards.
-        # Outside Face Y = half_d + stock_thk.
-        # Pocket Depth = stock/2.
-        # We want to remove the Rear half of the panel thickness.
-        pocket_cutter = create_simple_box("Hatch_Pocket_Cut", h_open_w + 2*flange_w, h_open_h + 2*flange_w, stock_thk, collection)
-        # Position: Center aligned. Y depth?
-        # Center of cutter at: half_d + stock_thk/2 + stock_thk/4?
-        # We want to cut Y range [half_d + stock/2, half_d + stock].
-        # Center of that range is half_d + 0.75*stock.
-        pocket_cutter.location = (0, half_d + (stock_thk * 0.75), base_z + (h_open_h/2))
-        apply_boolean_difference(parts['BACK'], pocket_cutter, delete_cutter=True)
-
     # 6. POSITION PARTS
     print("[6/8] Positioning parts...")
 
@@ -1006,6 +877,65 @@ def create_shadowbox_assembly():
     parts['RIGHT'].location = (finger_tip_x - stock_thk/2, 0, 0)
     parts['FRONT'].location = (0, -half_d - stock_thk/2, 0)
     parts['BACK'].location = (0, half_d + stock_thk/2, 0)
+
+    # 6b. ACCESS PANELS (CNC-19). Cut once every part sits in its assembled place: the
+    # cutters use assembled coordinates, and before step 6 each part was still at the
+    # origin, so the cuts missed. Sizes are the cut files' own: the fixed lips, the
+    # openings, and lids that are the shelf less the entered glue gap.
+    bpy.context.view_layer.update()
+    glue_gap = CONFIG['FIT_TOLERANCE_M']
+
+    # Bottom access panel: in the bottom rail (X along the box, Y across its depth, Z
+    # through the rail), centred in the depth, X% along the rail's inside length.
+    if CONFIG.get('BOTTOM_HATCH_ENABLED', False):  # H3 FIX: was == 'True' -> never ran
+        print("[6b/8] Cutting the bottom access panel...")
+        bh_w_m = float(CONFIG.get('BOTTOM_HATCH_WIDTH', 0)) * 0.001   # CONFIG holds mm
+        bh_h_m = float(CONFIG.get('BOTTOM_HATCH_HEIGHT', 0)) * 0.001
+        bh_x_pct = float(CONFIG.get('BOTTOM_HATCH_X_PCT', 50.0))
+        flange_w = CONFIG['BOTTOM_HATCH_FLANGE_M']
+        inner_w = total_w - (2 * stock_thk)
+        bx = (-(total_w/2) + stock_thk) + (bh_x_pct / 100.0 * inner_w)
+        rail_mid_z = -half_h + stock_thk/2
+
+        # Opening, through the rail (create_simple_box sizes are X, then Z, then Y).
+        c1 = create_simple_box("Bottom_Hatch_Cut_Thru", bh_w_m, stock_thk * 4, bh_h_m, collection)
+        c1.location = (bx, 0, rail_mid_z)
+        apply_boolean_difference(parts['BOTTOM'], c1, delete_cutter=True)
+        # Shelf: the outer (lower) half of the rail, the opening plus the lip each side.
+        c2 = create_simple_box("Bottom_Hatch_Cut_Pocket", bh_w_m + 2*flange_w, stock_thk, bh_h_m + 2*flange_w, collection)
+        c2.location = (bx, 0, -half_h)
+        apply_boolean_difference(parts['BOTTOM'], c2, delete_cutter=True)
+
+        # Lid: its lip plate down in the shelf, its plug up in the opening.
+        bh_obj = create_hatch_lid("Box_Bottom_Hatch_Lid", bh_w_m + 2*flange_w - glue_gap, bh_h_m + 2*flange_w - glue_gap, stock_thk, flange_w, collection)
+        bh_obj.rotation_euler = (math.radians(-90), 0, 0)
+        bh_obj.location = (bx, 0, rail_mid_z)
+        parts['BOTTOM_HATCH'] = bh_obj
+
+    # Rear access panel: in the back panel (X across, Z up, Y through the panel), centred
+    # across, its opening's bottom edge REAR_HATCH_OPEN_BOTTOM_M above the box's bottom
+    # (one stock thickness + 0.5" + the raise, as in the cut files).
+    if CONFIG.get('HATCH_ENABLED', False):  # H3 FIX: was == 'True' -> never ran
+        print("[6b/8] Cutting the rear access panel...")
+        h_open_w = CONFIG['REAR_HATCH_OPEN_W_M']
+        h_open_h = CONFIG['REAR_HATCH_OPEN_H_M']
+        flange_w = CONFIG['REAR_HATCH_FLANGE_M']
+        hatch_z = -half_h + CONFIG['REAR_HATCH_OPEN_BOTTOM_M'] + (h_open_h/2)
+        panel_mid_y = half_d + stock_thk/2
+
+        # Opening, through the panel.
+        cutter = create_simple_box("Hatch_Opening_Cut", h_open_w, h_open_h, stock_thk * 3, collection)
+        cutter.location = (0, panel_mid_y, hatch_z)
+        apply_boolean_difference(parts['BACK'], cutter, delete_cutter=True)
+        # Shelf: the outer half of the panel, the opening plus the lip each side.
+        pocket_cutter = create_simple_box("Hatch_Pocket_Cut", h_open_w + 2*flange_w, h_open_h + 2*flange_w, stock_thk, collection)
+        pocket_cutter.location = (0, half_d + stock_thk, hatch_z)
+        apply_boolean_difference(parts['BACK'], pocket_cutter, delete_cutter=True)
+
+        # Lid: its lip plate outward in the shelf, its plug inward in the opening.
+        hatch_obj = create_hatch_lid("Box_Hatch_Lid", h_open_w + 2*flange_w - glue_gap, h_open_h + 2*flange_w - glue_gap, stock_thk, flange_w, collection)
+        hatch_obj.location = (0, panel_mid_y, hatch_z)
+        parts['HATCH'] = hatch_obj
 
     # 7. APPLY TRANSFORMS AND MATERIALS
     print("[7/8] Applying transforms and materials...")

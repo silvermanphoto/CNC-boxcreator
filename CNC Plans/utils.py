@@ -12,6 +12,11 @@ CLEAT_MAX_LEN_IN = 47.0
 # panel's whichever face each part is cut from; 0.33/0.66 missed by 1% of the cleat.
 CLEAT_HOLE_FRACTIONS = (0.05, 1 / 3, 2 / 3, 0.95)
 
+# Access-panel lip widths (January v1.26 rear, v1.28 bottom), shared by the cut files and
+# the Blender preview (CNC-19: the preview had its own stock/2 - 0.5 mm lip).
+REAR_HATCH_FLANGE_IN = 0.64
+BOTTOM_HATCH_FLANGE_IN = 0.6
+
 def convert_to_inches(value_mm):
     """Convert mm to inches"""
     return value_mm / 25.4

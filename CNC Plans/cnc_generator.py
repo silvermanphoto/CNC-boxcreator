@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.46
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.47
 # ========================================
-# PRODUCTION RELEASE v1.46  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.47  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -37,7 +37,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 import json
-from utils import convert_to_inches, MARGIN_INCHES, CLEAT_MAX_LEN_IN, CLEAT_HOLE_FRACTIONS
+from utils import (convert_to_inches, MARGIN_INCHES, CLEAT_MAX_LEN_IN, CLEAT_HOLE_FRACTIONS,
+                   REAR_HATCH_FLANGE_IN, BOTTOM_HATCH_FLANGE_IN)
 
 # ==============================================================================
 # DEPENDENCY CHECK
@@ -388,10 +389,10 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.46"
+APP_VERSION = "1.47"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
-REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
+# REAR_HATCH_FLANGE_IN (0.64" lip around the opening) is in utils.py, shared with the preview.
 REAR_HATCH_PANEL_HOLE_DIA_IN = 0.28125  # 9/32" holes in the back panel's lip, centred in it
 REAR_HATCH_LID_HOLE_DIA_IN = 0.2        # holes in the lid, on the same centres
 # CNC-10: solid wood kept between the hatch shelf (pocketed from the outside face) and the
@@ -403,7 +404,7 @@ NEST_CLEAR_EXTRA_IN = 0.125             # CNC-13: wood kept between the window's
 
 # Bottom access panel (January v1.27-v1.28 spec).
 BOTTOM_HATCH_HEIGHT_IN = 3.395          # fixed opening height across the rail's depth (v1.28)
-BOTTOM_HATCH_FLANGE_IN = 0.6            # lip width around the opening
+# BOTTOM_HATCH_FLANGE_IN (0.6" lip around the opening) is in utils.py, shared with the preview.
 BOTTOM_HATCH_RAIL_HOLE_DIA_IN = 0.28125 # 9/32" holes in the rail's lip
 BOTTOM_HATCH_LID_HOLE_DIA_IN = 0.2      # holes in the lid, on the same centres
 BOTTOM_HATCH_HOLE_INSET_IN = 0.25       # from the lip's outer edge to the hole's edge
@@ -1355,8 +1356,9 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
             c_right = cx + wire_w_in / 2
             c_top = m_top - wire_l_in
 
-            # Clockwise, starting at the channel's top-left corner
-            path_d = (
+            # Clockwise, starting at the channel's top-left corner. Named nema_d: reusing
+            # path_d replaced the rail outline this function returns (CNC-19).
+            nema_d = (
                 f"M {f(c_left)} {f(c_top)} "
                 f"L {f(c_right)} {f(c_top)} "
                 f"L {f(c_right)} {f(m_top)} "
@@ -1371,7 +1373,7 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
                 f"L {f(c_left)} {f(m_top)} "
                 f"Z"
             )
-            lid_elements.append(create_path(path_d, COLOR_POCKETS))
+            lid_elements.append(create_path(nema_d, COLOR_POCKETS))
 
             m_off = nema_mount_in / 2.0
             for dx, dy in ((-m_off, -m_off), (m_off, -m_off), (-m_off, m_off), (m_off, m_off)):
@@ -2375,7 +2377,12 @@ def generate_back_panel_parts(version):
         hatch_data = {
             'lid_w': lid_out_w,
             'lid_h': lid_out_h,
-            'svg_content': "\n".join(lid_elements) # Raw content effectively
+            'svg_content': "\n".join(lid_elements), # Raw content effectively
+            # CNC-19: the Blender preview draws the panel from these (inches).
+            'open_w': hatch_open_w,
+            'open_h': hatch_open_h,
+            'open_bottom': L['open_bottom'],   # opening's bottom edge above the panel's bottom edge
+            'flange': flange_w,
         }
 
     # VISUALIZATION
