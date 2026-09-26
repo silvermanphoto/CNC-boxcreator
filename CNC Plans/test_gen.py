@@ -105,6 +105,7 @@ def run_test():
     test_cnc06_bottom_rail_checks()
     test_cnc10_rear_hatch_checks()
     test_cnc11_oversize_parts()
+    test_cnc12_motor_pocket_fits_motor()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -361,6 +362,27 @@ def test_cnc11_oversize_parts():
     assert [i["id"] for i in packer.unplaced] == ["BIG"] and len(packer.sheets) == 1, (packer.unplaced, packer.sheets)
     assert all(s["items"] for s in packer.sheets), "an empty sheet was left in the layout"
     print("  PASS [CNC-11] 50 x 50 in box: FRONT and BACK reported as missing, check fails, no empty sheet left")
+
+
+
+def test_cnc12_motor_pocket_fits_motor():
+    # CNC-12: the bottom rail's motor pocket is wider than the 17HM19-2004S body (42.32 mm)
+    # and its centre hole clears the 22 mm front boss; the M3 holes stay on 31 mm centres.
+    cfg = copy.deepcopy(BASE)
+    cfg.update({"MOTOR_POCKET_ENABLED": True, "MOTOR_POCKET_X": 7.0 * 25.4})
+    C.CONFIG.clear(); C.CONFIG.update(cfg)
+    fbot, _ = C.generate_rail_parts("BOTTOM_RAIL", True, True, "T")
+    (px, py, pw, ph), = rects(fbot["BOTTOM_RAIL_POCKETS.vT.svg"])
+    assert pw >= 42.3 / 25.4 and ph >= 42.3 / 25.4, (pw, ph)
+    cx, cy = px + pw / 2, py + ph / 2
+    holes = circles(fbot["BOTTOM_RAIL_HOLES.vT.svg"])
+    centre = [h for h in holes if abs(h[0] - cx) < 1e-4 and abs(h[1] - cy) < 1e-4]
+    assert len(centre) == 1 and centre[0][2] >= 11.0 / 25.4, holes
+    mounts = [h for h in holes if h not in centre]
+    assert len(mounts) == 4 and all(abs(abs(x - cx) - 15.5 / 25.4) < 2e-4 for x, _, _ in mounts), mounts
+    svg = build(cfg)
+    assert path_of(svg, "BOTTOM_HOLE").count("M ") == 5 and path_of(svg, "BOTTOM_RABBET").count("M ") == 1
+    print("  PASS [CNC-12] motor pocket 42.5 mm, centre hole 23 mm (boss 22 mm), M3 holes on 31 mm")
 
 
 if __name__ == "__main__":

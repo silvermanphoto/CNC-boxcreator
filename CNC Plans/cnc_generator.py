@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.43
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.44
 # ========================================
-# PRODUCTION RELEASE v1.43  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.44  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -388,7 +388,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.43"
+APP_VERSION = "1.44"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -412,6 +412,14 @@ NEMA17_CORNER_R_MM = 4.0
 NEMA17_MOUNT_SPACING_MM = 31.0          # hole pattern, square
 NEMA17_MOUNT_HOLE_DIA_MM = 3.5          # M3 clearance, through
 NEMA17_WIRE_CHANNEL_IN = 0.5            # 0.5" x 0.5" wiring channel off the body's top edge
+# CNC-12: the bottom rail's motor pocket takes the same body size (it was 42.0 mm, with no
+# clearance). Its centre hole must clear the motor's front boss: the 17HM19-2004S datasheet
+# gives a 22 mm boss, 2 mm high (https://www.oyostepper.com/images/upload/File/17HM19-2004S.pdf),
+# and the maker's model in this folder (17HM19-2004S Stepper Motor.obj) measures a 42.32 mm
+# body and a boss root fillet reaching 22.74 mm at the face. The old 12.7 mm hole held
+# the motor about 2 mm off the pocket floor.
+MOTOR_POCKET_SIZE_MM = NEMA17_BODY_MM
+MOTOR_BOSS_HOLE_DIA_MM = 23.0
 
 
 
@@ -990,7 +998,7 @@ def validate_motor_pocket(cfg):
         return []
     stock = convert_to_inches(cfg['STOCK_THICKNESS'])
     clear = convert_to_inches(cfg['BOX_DEPTH']) - stock
-    pocket = convert_to_inches(cfg.get('MOTOR_POCKET_SIZE', 42.0))
+    pocket = convert_to_inches(cfg.get('MOTOR_POCKET_SIZE', MOTOR_POCKET_SIZE_MM))
     if pocket > clear + 1e-9:
         return [f'the {pocket:.3f}" motor pocket is wider than the {clear:.3f}" of bottom rail '
                 f'left clear between the front and back panels.']
@@ -1026,7 +1034,7 @@ def validate_bottom_hatch(cfg):
         # rail's outer end, one stock thickness left of the rail body. Both features are
         # centred in the rail's depth, so they collide whenever their lengths overlap.
         m_c = convert_to_inches(cfg.get('MOTOR_POCKET_X', 0)) - stock
-        m_half = convert_to_inches(cfg.get('MOTOR_POCKET_SIZE', 42.0)) / 2.0
+        m_half = convert_to_inches(cfg.get('MOTOR_POCKET_SIZE', MOTOR_POCKET_SIZE_MM)) / 2.0
         if m_c + m_half > left and m_c - m_half < right:
             problems.append(f'it overlaps the motor pocket, which spans {m_c - m_half:.3f}" to '
                             f'{m_c + m_half:.3f}" along the same rail.')
@@ -1178,13 +1186,13 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
         
         motor_y_in = rail_h_in / 2
         
-        pocket_mm = CONFIG.get('MOTOR_POCKET_SIZE', 42.0)
+        pocket_mm = CONFIG.get('MOTOR_POCKET_SIZE', MOTOR_POCKET_SIZE_MM)
         pocket_in = convert_to_inches(pocket_mm)
         pockets_elements.append(create_rect(ax + motor_x_in - pocket_in/2, ay + motor_y_in - pocket_in/2, pocket_in, pocket_in, COLOR_POCKETS))
         
-        # Center Hole (Shaft?) - Keeping 0.25" default for now or user specific? 
-        # Usually Motor Shaft hole is larger. keeping as is.
-        holes_elements.append(create_circle(ax + motor_x_in, ay + motor_y_in, 0.25, COLOR_HOLES))
+        # Centre hole: clears the motor's front boss and shaft (CNC-12; was r 0.25").
+        boss_r_in = convert_to_inches(MOTOR_BOSS_HOLE_DIA_MM / 2.0)
+        holes_elements.append(create_circle(ax + motor_x_in, ay + motor_y_in, boss_r_in, COLOR_HOLES))
         
         pattern_mm = CONFIG.get('MOTOR_MOUNT_PATTERN', 31.0)
         pattern_in = convert_to_inches(pattern_mm)
@@ -1223,7 +1231,7 @@ def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
     # No Rabbets in Viz
     if has_motor_pocket and CONFIG.get('MOTOR_POCKET_ENABLED', False):
         viz_elements.append(create_rect(ax + motor_x_in - pocket_in/2, ay + motor_y_in - pocket_in/2, pocket_in, pocket_in, COLOR_POCKETS))
-        viz_elements.append(create_circle(ax + motor_x_in, ay + motor_y_in, 0.25, COLOR_HOLES))
+        viz_elements.append(create_circle(ax + motor_x_in, ay + motor_y_in, convert_to_inches(MOTOR_BOSS_HOLE_DIA_MM / 2.0), COLOR_HOLES))
     viz_elements.append(create_svg_footer())
     files[f"VISUALIZATION_{rail_name}.v{version}.svg"] = "\n".join(viz_elements)
     
