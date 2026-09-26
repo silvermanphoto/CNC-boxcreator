@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.45
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.46
 # ========================================
-# PRODUCTION RELEASE v1.45  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.46  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -37,7 +37,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 import json
-from utils import convert_to_inches, MARGIN_INCHES, CLEAT_MAX_LEN_IN
+from utils import convert_to_inches, MARGIN_INCHES, CLEAT_MAX_LEN_IN, CLEAT_HOLE_FRACTIONS
 
 # ==============================================================================
 # DEPENDENCY CHECK
@@ -388,7 +388,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.45"
+APP_VERSION = "1.46"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -2238,7 +2238,7 @@ def generate_back_panel_parts(version):
         panel_cx = ax + (width_in / 2.0)
         cleat_start_x = panel_cx - (cleat_w / 2.0)
         
-        h_pcts = [0.05, 0.33, 0.66, 0.95]
+        h_pcts = CLEAT_HOLE_FRACTIONS  # CNC-14: was 0.33/0.66, not mirror-symmetric
         
         for pct in h_pcts:
             hx = cleat_start_x + (pct * cleat_w)
@@ -2453,7 +2453,7 @@ def generate_french_cleats(version):
     # Vertical: Centered in 4" cleat -> Y = 2.0"
     
     # Store Offsets for separate Cleat Parts
-    cleat_offsets = [0.05, 0.33, 0.66, 0.95]
+    cleat_offsets = CLEAT_HOLE_FRACTIONS  # CNC-14: was 0.33/0.66, not mirror-symmetric
     
     # 1. WALL CLEAT HOLES (Original Logic - 2" spacing Center-Out)
     # User didn't change Wall Cleat logic ("The Cleat without the many holes [Box Cleat] must have [mounting] holes... The French Cleat [Box Cleat] itself should have...")

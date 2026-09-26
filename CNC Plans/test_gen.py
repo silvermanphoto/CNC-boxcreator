@@ -107,6 +107,7 @@ def run_test():
     test_cnc11_oversize_parts()
     test_cnc12_motor_pocket_fits_motor()
     test_cnc13_nesting_clearance()
+    test_cnc14_cleat_holes_symmetric()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -408,6 +409,39 @@ def test_cnc13_nesting_clearance():
     cfg["TOOL_D_PRIMARY"] = 3.175
     assert nested(build(cfg))
     print("  PASS [CNC-13] lid nests only with bit + 1/8 in of room (0.37 in: yes for 1/8 in bit, no for 1/4 in)")
+
+
+
+def blender_scripts(cfg):
+    """The Blender and TriVision preview scripts for cfg, generated in memory."""
+    C.CONFIG.clear(); C.CONFIG.update(cfg)
+    rails = {k: C.generate_rail_parts(n, hz, m, "T")[1] for k, n, hz, m in (
+        ("TOP", "TOP_RAIL", True, False), ("BOTTOM", "BOTTOM_RAIL", True, True),
+        ("LEFT", "LEFT_RAIL", False, False), ("RIGHT", "RIGHT_RAIL", False, False))}
+    _, gf = C.generate_front_bezel_parts("T")
+    _, gb = C.generate_back_panel_parts("T")
+    gen_blender, gen_trivision = C._get_blender_generator()
+    return gen_blender("T", C.CONFIG, rails, gf, gb), gen_trivision("T", C.CONFIG, rails, gf, gb)
+
+
+def test_cnc14_cleat_holes_symmetric():
+    # CNC-14: the box cleat's four screw holes and the back panel's matching holes use a
+    # mirror-symmetric pattern (5 %, 1/3, 2/3, 95 %), so they line up whichever face each
+    # part is cut from. Report's check 14, then the geometry itself.
+    pcts = C.CLEAT_HOLE_FRACTIONS
+    assert sorted(round(1 - p, 4) for p in pcts) == sorted(round(p, 4) for p in pcts), pcts
+    cfg = dict(copy.deepcopy(BASE), CLEATS_ENABLED=True)
+    C.CONFIG.clear(); C.CONFIG.update(cfg)
+    _, gb = C.generate_back_panel_parts("T")
+    fc, cd = C.generate_french_cleats("T")
+    W, cw = 14.0, cd["cleat_w"]
+    start = (W - cw) / 2.0
+    cleat_x = sorted(x - 2.0 for x, _, _ in circles(fc["CLEAT_BOX_HOLES_THROUGH.vT.svg"]))
+    panel_from_back = sorted(W - (x - 2.0) - start for x, _ in gb["holes"])   # panel seen from its other face
+    assert len(cleat_x) == 4 and all(abs(a - b) < 2e-4 for a, b in zip(panel_from_back, cleat_x)), (panel_from_back, cleat_x)
+    _, trivision = blender_scripts(cfg)
+    assert "hole_pcts = [0.05, 0.3333333333333333, 0.6666666666666666, 0.95]" in trivision
+    print("  PASS [CNC-14] cleat and back-panel holes symmetric (5 %, 1/3, 2/3, 95 %) and meet when mirrored")
 
 
 if __name__ == "__main__":

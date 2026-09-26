@@ -3,7 +3,7 @@ Blender Generator Module for CNC Box Creator.
 Handles generation of Blender Python scripts for visualization.
 """
 
-from utils import convert_to_inches, MARGIN_INCHES, CLEAT_MAX_LEN_IN
+from utils import convert_to_inches, MARGIN_INCHES, CLEAT_MAX_LEN_IN, CLEAT_HOLE_FRACTIONS
 
 def generate_blender_script(version, config, rail_paths, geom_front, geom_back):
     """
@@ -1732,7 +1732,7 @@ def create_shadowbox_assembly():
         # Mounting Holes (Boolean)
         # "5%, 33%, 66%, 95%"
         # Create Cylinder Cutters.
-        hole_pcts = [0.05, 0.33, 0.66, 0.95]
+        hole_pcts = {list(CLEAT_HOLE_FRACTIONS)}  # CNC-14: shared with the cut files
         # X starts at -cw/2.
         
         for i, pct in enumerate(hole_pcts):
