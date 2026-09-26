@@ -103,6 +103,7 @@ def run_test():
     test_cnc04_nested_lid_routing()
     test_cnc05_sheet_edges()
     test_cnc06_bottom_rail_checks()
+    test_cnc10_rear_hatch_checks()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -304,6 +305,42 @@ def test_cnc06_bottom_rail_checks():
     assert C.validate_motor_pocket(dict(saved, MOTOR_POCKET_ENABLED=True)) == []          # 42 mm in 1.902"
     assert C.validate_motor_pocket(dict(saved, MOTOR_POCKET_ENABLED=True, BOX_DEPTH=2.0 * 25.4))
     print("  PASS [CNC-06] saved settings rejected (4.595 in needed, 1.902 in clear); deep box, rail ends and motor pocket checked")
+
+
+
+def test_cnc10_rear_hatch_checks():
+    # CNC-10: the rear access panel's shelf (pocketed from the outside face) must keep 0.125"
+    # of solid wood inside the back panel's edge rebate (pocketed from the inside face) on
+    # every side, and must not cross the cleat screw row. Report's check 10: on a 14" box,
+    # 90 % is refused and 85 % accepted (raised 3", 25 % high, as in Joel's January v132 run).
+    stock_in = 0.5984
+    base = {"STOCK_THICKNESS": stock_in * 25.4, "TOTAL_WIDTH": 14 * 25.4, "TOTAL_HEIGHT": 14 * 25.4,
+            "FIT_TOLERANCE": 0.0, "BACK_RIM_WIDTH_IN": stock_in, "HATCH_ENABLED": True,
+            "HATCH_WIDTH_PCT": 85.0, "HATCH_HEIGHT_PCT": 25.0, "HATCH_RAISE_IN": 3.0, "CLEATS_ENABLED": False}
+    V = C.validate_rear_hatch
+    assert V(base) == [], V(base)
+    wide = V(dict(base, HATCH_WIDTH_PCT=90.0))
+    assert len(wide) == 1 and '0.198" into' in wide[0] and "85.3 or less" in wide[0], wide
+    assert V(dict(base, HATCH_WIDTH_PCT=85.3)) == [] and V(dict(base, HATCH_WIDTH_PCT=85.4))
+    # At raise 0 the January 0.64" lip reaches 0.14" into the rebate along the bottom.
+    low = V(dict(base, HATCH_RAISE_IN=0.0))
+    assert len(low) == 1 and '0.140" into' in low[0] and 'at least 0.265"' in low[0], low
+    assert V(dict(base, HATCH_RAISE_IN=0.265)) == []
+    assert any("at the top" in m for m in V(dict(base, HATCH_RAISE_IN=9.0)))
+    cleats = dict(base, CLEATS_ENABLED=True)     # screw row 4.667" below the top
+    assert V(cleats) == [] and any("cleat screw holes" in m for m in V(dict(cleats, HATCH_RAISE_IN=5.0)))
+    assert any("opening would be" in m for m in V(dict(base, HATCH_WIDTH_PCT=4.0)))
+    assert V(dict(base, HATCH_ENABLED=False, HATCH_WIDTH_PCT=99.0)) == []
+    # Joel's January v131 settings (12 x 24", 85 %): the lip ends 0.002" from the rebate.
+    v131 = V(dict(base, TOTAL_WIDTH=12 * 25.4, TOTAL_HEIGHT=24 * 25.4, CLEATS_ENABLED=True))
+    assert len(v131) == 1 and "82.9 or less" in v131[0], v131
+    # The cut file draws the shelf where the check measured it.
+    C.CONFIG.clear(); C.CONFIG.update(dict(BASE, **{k: base[k] for k in base if k.startswith("HATCH")}))
+    fb, _ = C.generate_back_panel_parts("T")
+    (ox, oy, ow, oh), (sx, sy, sw, sh) = rects(fb["BACK_PANEL_HATCH_CUT.vT.svg"])
+    L = C.rear_hatch_layout_in(C.CONFIG)
+    assert abs((sx - 2.0) - L["shelf_left"]) < 1e-4 and abs((2.0 + 14.0 - (sy + sh)) - L["shelf_bottom"]) < 1e-4
+    print("  PASS [CNC-10] 90 % refused, 85 % accepted on a 14 in box; bottom, top, cleat row and tiny openings checked")
 
 
 if __name__ == "__main__":

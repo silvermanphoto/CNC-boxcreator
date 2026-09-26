@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.41
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.42
 # ========================================
-# PRODUCTION RELEASE v1.41  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.42  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -388,12 +388,17 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.41"
+APP_VERSION = "1.42"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
 REAR_HATCH_PANEL_HOLE_DIA_IN = 0.28125  # 9/32" holes in the back panel's lip, centred in it
 REAR_HATCH_LID_HOLE_DIA_IN = 0.2        # holes in the lid, on the same centres
+# CNC-10: solid wood kept between the hatch shelf (pocketed from the outside face) and the
+# back panel's edge rebate (pocketed from the inside face); where the two meet, the panel
+# is cut through.
+REAR_HATCH_EDGE_CLEAR_IN = 0.125
+BACK_PANEL_CLEAT_HOLE_R_IN = 0.1        # #10 screw through holes for the box cleat (~0.2" dia)
 
 # Bottom access panel (January v1.27-v1.28 spec).
 BOTTOM_HATCH_HEIGHT_IN = 3.395          # fixed opening height across the rail's depth (v1.28)
@@ -1025,6 +1030,84 @@ def validate_bottom_hatch(cfg):
         if m_c + m_half > left and m_c - m_half < right:
             problems.append(f'it overlaps the motor pocket, which spans {m_c - m_half:.3f}" to '
                             f'{m_c + m_half:.3f}" along the same rail.')
+    return problems
+
+def back_rim_width_in(cfg):
+    """Width (inches) of the back panel's edge rebate, as generate_back_panel_parts cuts it."""
+    # M5 FIX: prefer the physical rim width (inches); fall back to the legacy proxy.
+    if 'BACK_RIM_WIDTH_IN' in cfg:
+        rim = cfg['BACK_RIM_WIDTH_IN']
+    else:
+        rim = convert_to_inches(cfg['STOCK_THICKNESS']) - cfg.get('BACK_RABBET_WIDTH', 0.3)
+    return max(rim, 0)
+
+def rear_hatch_layout_in(cfg):
+    """Rear access panel geometry in inches, shared by the back-panel cut files, the
+    rear-hatch check and the Blender preview. The Width/Height percentages set the shelf
+    (lid) footprint by the pre-v1.26 rule: opening plus a lip of stock/2 - glue gap each
+    side. January v1.26 fixed the lip at REAR_HATCH_FLANGE_IN and shrank the opening to
+    match, so the shelf stays where it was. The opening is centred across the panel, its
+    bottom edge one stock thickness + 0.5" + the raise above the panel's bottom edge."""
+    width_in = convert_to_inches(cfg['TOTAL_WIDTH'])
+    stock = convert_to_inches(cfg['STOCK_THICKNESS'])
+    fit = convert_to_inches(cfg.get('FIT_TOLERANCE', 0.254))
+    old_flange = (stock / 2.0) - fit
+    shelf_w = width_in * (cfg.get('HATCH_WIDTH_PCT', 50.0) / 100.0) + (2 * old_flange)
+    shelf_h = convert_to_inches(cfg['TOTAL_HEIGHT']) * (cfg.get('HATCH_HEIGHT_PCT', 33.0) / 100.0) + (2 * old_flange)
+    open_bottom = stock + 0.5 + cfg.get('HATCH_RAISE_IN', 0.0)
+    return {
+        'shelf_w': shelf_w, 'shelf_h': shelf_h,
+        'open_w': shelf_w - (2 * REAR_HATCH_FLANGE_IN),
+        'open_h': shelf_h - (2 * REAR_HATCH_FLANGE_IN),
+        'open_bottom': open_bottom,                         # from the panel's bottom edge
+        'shelf_left': (width_in - shelf_w) / 2.0,           # from the panel's left edge
+        'shelf_bottom': open_bottom - REAR_HATCH_FLANGE_IN, # from the panel's bottom edge
+        'old_flange': old_flange,
+        'fit': fit,
+    }
+
+def validate_rear_hatch(cfg):
+    """CNC-10: problems that make the rear access panel unbuildable, as plain sentences for
+    the dialog; empty when it fits or is switched off. Its shelf must keep
+    REAR_HATCH_EDGE_CLEAR_IN of solid wood inside the back panel's edge rebate on every
+    side, and must not cross the row of cleat screw holes a third of the way down."""
+    if not cfg.get('HATCH_ENABLED', False):
+        return []
+    L = rear_hatch_layout_in(cfg)
+    if L['open_w'] <= 0 or L['open_h'] <= 0:
+        return [f'its opening would be {L["open_w"]:.3f}" x {L["open_h"]:.3f}" once the '
+                f'{REAR_HATCH_FLANGE_IN}" lip is taken off each side. Raise Width % or Height %.']
+    width_in = convert_to_inches(cfg['TOTAL_WIDTH'])
+    height_in = convert_to_inches(cfg['TOTAL_HEIGHT'])
+    rim = back_rim_width_in(cfg)
+    need = rim + REAR_HATCH_EDGE_CLEAR_IN
+
+    def near(dist, where):
+        gap = dist - rim
+        if gap < 0:
+            return (f'its lip runs {-gap:.3f}" into the back panel\'s {rim:.3f}" edge rebate at the {where}, '
+                    f'which is cut from the other face, so the panel would be cut through there')
+        return (f'its lip comes within {gap:.3f}" of the back panel\'s {rim:.3f}" edge rebate at the {where}, '
+                f'which is cut from the other face; it needs {REAR_HATCH_EDGE_CLEAR_IN}" of solid wood there')
+
+    problems = []
+    if L['shelf_left'] < need - 1e-9:
+        max_pct = (width_in - 2 * need - 2 * L['old_flange']) / width_in * 100.0
+        hint = f' Use a Width % of {math.floor(round(max_pct * 10, 6)) / 10:.1f} or less.' if max_pct > 0 else ''
+        problems.append(near(L['shelf_left'], 'left and right') + '.' + hint)
+    if L['shelf_bottom'] < need - 1e-9:
+        min_raise = cfg.get('HATCH_RAISE_IN', 0.0) + (need - L['shelf_bottom'])
+        problems.append(near(L['shelf_bottom'], 'bottom') +
+                        f'. Set Raise Panel to at least {math.ceil(round(min_raise * 1000, 6)) / 1000:.3f}".')
+    top = height_in - (L['shelf_bottom'] + L['shelf_h'])
+    if top < need - 1e-9:
+        problems.append(near(top, 'top') + f'. Lower Raise Panel by {need - top:.3f}" or reduce Height %.')
+    if cfg.get('CLEATS_ENABLED', True):
+        row = height_in * 2.0 / 3.0            # the cleat screw holes, from the bottom edge
+        reach = BACK_PANEL_CLEAT_HOLE_R_IN + REAR_HATCH_EDGE_CLEAR_IN
+        if L['shelf_bottom'] - reach < row < L['shelf_bottom'] + L['shelf_h'] + reach:
+            problems.append(f'it crosses the row of cleat screw holes {height_in / 3.0:.3f}" below the top '
+                            f'of the back panel, where the hanging cleat is screwed on.')
     return problems
 
 def generate_rail_parts(rail_name, is_horizontal, has_motor_pocket, version):
@@ -2074,14 +2157,8 @@ def generate_back_panel_parts(version):
     width_in = convert_to_inches(CONFIG['TOTAL_WIDTH'])
     height_in = convert_to_inches(CONFIG['TOTAL_HEIGHT'])
     
-    stock_thk = convert_to_inches(CONFIG['STOCK_THICKNESS'])
-    # Back Panel Rabbet (Perimeter Plug) logic.
-    # M5 FIX: prefer the physical rim width (inches); fall back to the legacy proxy.
-    if 'BACK_RIM_WIDTH_IN' in CONFIG:
-        rim_width = CONFIG['BACK_RIM_WIDTH_IN']
-    else:
-        rim_width = stock_thk - CONFIG.get('BACK_RABBET_WIDTH', 0.3)
-    if rim_width < 0: rim_width = 0
+    # Back Panel Rabbet (Perimeter Plug) logic; shared with the rear-hatch check (CNC-10).
+    rim_width = back_rim_width_in(CONFIG)
     inner_w = width_in - (2 * rim_width)
     inner_h = height_in - (2 * rim_width)
     
@@ -2119,7 +2196,7 @@ def generate_back_panel_parts(version):
     # "centered at 1/3 of the way from the top of the back of the artwork"
     
     hole_positions = []
-    hole_r = 0.1 # #10 Screw Through Hole (~0.2" dia)
+    hole_r = BACK_PANEL_CLEAT_HOLE_R_IN # #10 Screw Through Hole (~0.2" dia)
     
     if CONFIG.get('CLEATS_ENABLED', True):
         # Calculate Cleat Width (Same logic as generate_french_cleats)
@@ -2165,22 +2242,13 @@ def generate_back_panel_parts(version):
         # The width/height percentages set the lid footprint by the pre-v1.26 rule
         # (opening + a flange of stock/2 - glue gap each side). v1.26 fixed the flange
         # (rabbet) at REAR_HATCH_FLANGE_IN and shrinks the opening to match, so the shelf
-        # footprint stays where it was.
-        w_pct = CONFIG.get('HATCH_WIDTH_PCT', 50.0)
-        h_pct = CONFIG.get('HATCH_HEIGHT_PCT', 33.0)
-
-        raw_open_w = width_in * (w_pct / 100.0)
-        raw_open_h = height_in * (h_pct / 100.0)
-
-        glue_gap = convert_to_inches(CONFIG.get('FIT_TOLERANCE', 0.254))
-        old_flange_w = (stock_thk / 2.0) - glue_gap
-
-        hatch_lid_w = raw_open_w + (2 * old_flange_w)   # shelf footprint (nominal lid size)
-        hatch_lid_h = raw_open_h + (2 * old_flange_w)
+        # footprint stays where it was. CNC-10: computed in rear_hatch_layout_in, which the
+        # rear-hatch check and the Blender preview share.
+        L = rear_hatch_layout_in(CONFIG)
+        hatch_lid_w, hatch_lid_h = L['shelf_w'], L['shelf_h']   # shelf footprint (nominal lid size)
 
         flange_w = REAR_HATCH_FLANGE_IN
-        hatch_open_w = hatch_lid_w - (2 * flange_w)     # opening shrunk to the fixed flange
-        hatch_open_h = hatch_lid_h - (2 * flange_w)
+        hatch_open_w, hatch_open_h = L['open_w'], L['open_h']   # opening shrunk to the fixed flange
         
         # 2. Calc Position
         # "Baseline = Stock Thickness + 0.5""
@@ -2198,9 +2266,8 @@ def generate_back_panel_parts(version):
         # SVG_Y_Bottom_Hatch = (ay + height_in) - Distance_From_Bottom_Edge.
         # SVG_Y_Top_Hatch = SVG_Y_Bottom_Hatch - Hatch_Open_H. (Since we draw from Top Left).
         
-        raise_val = CONFIG.get('HATCH_RAISE_IN', 0.0)
-        dist_from_bottom = stock_thk + 0.5 + raise_val
-        
+        dist_from_bottom = L['open_bottom']   # Stock_Thk + 0.5" + Raise
+
         hatch_y = (ay + height_in) - dist_from_bottom - hatch_open_h
         hatch_x = ax + (width_in - hatch_open_w) / 2 # Centered Horizontally
         
@@ -3414,6 +3481,12 @@ class CarbideOptimizedApp(tk.Tk):
             for problem in validate_bottom_hatch(CONFIG):
                 gen_warnings.append("Bottom access panel left out: " + problem)
                 CONFIG['BOTTOM_HATCH_ENABLED'] = False
+            # CNC-10: the rear access panel must stay clear of the back panel's edge rebate
+            # and the cleat screw row (set CLEATS_ENABLED first: CONFIG outlives a run).
+            CONFIG['CLEATS_ENABLED'] = self.vars['cleats_enabled'].get()
+            for problem in validate_rear_hatch(CONFIG):
+                gen_warnings.append("Rear access panel left out: " + problem)
+                CONFIG['HATCH_ENABLED'] = False
 
             out_path = Path(raw_out)
             # CNC-08: never create the output folder. A stale or mistyped path used to make a
@@ -3434,8 +3507,6 @@ class CarbideOptimizedApp(tk.Tk):
             next_ver = max(existing_versions) + 1 if existing_versions else 1
             final_out_dir = out_path / f"Box SVGs v{next_ver}"
             final_out_dir.mkdir(parents=True, exist_ok=True)
-
-            CONFIG['CLEATS_ENABLED'] = self.vars['cleats_enabled'].get()
 
             all_files = {}
             rail_paths = {}
