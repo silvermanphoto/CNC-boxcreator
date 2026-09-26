@@ -19,8 +19,10 @@ Each run writes a versioned output folder (`Box SVGs vNNN/`) containing:
   files per part (left/right/top/bottom rails, front bezel, back panel), so each
   toolpath can be assigned its own depth and tool in CAM.
 - **A combined master layout** — all parts bin-packed onto 48×48-inch artboards
-  (auto-rotated for best fit, expandable to 48×96), with large color-coded text
-  annotations: part name, sub-part, and machining instructions.
+  (auto-rotated for best fit, expandable to 48×96). Each part's paths are grouped
+  under its name, and each path's colour and name give the toolpath to apply:
+  outside cut, hole, rabbet pocket, inside window cut or score. The layout carries
+  no text.
 - **`config.json`** — the exact parameters that produced the run, so any output
   set can be regenerated or audited later.
 - **A Blender mockup script** (`OPEN_ME_IN_BLENDER.*.py`) that assembles the cut
