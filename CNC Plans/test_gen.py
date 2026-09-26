@@ -106,6 +106,7 @@ def run_test():
     test_cnc10_rear_hatch_checks()
     test_cnc11_oversize_parts()
     test_cnc12_motor_pocket_fits_motor()
+    test_cnc13_nesting_clearance()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -383,6 +384,30 @@ def test_cnc12_motor_pocket_fits_motor():
     svg = build(cfg)
     assert path_of(svg, "BOTTOM_HOLE").count("M ") == 5 and path_of(svg, "BOTTOM_RABBET").count("M ") == 1
     print("  PASS [CNC-12] motor pocket 42.5 mm, centre hole 23 mm (boss 22 mm), M3 holes on 31 mm")
+
+
+
+def test_cnc13_nesting_clearance():
+    # CNC-13: the rear-hatch lid nests in the window's offcut only with one bit diameter plus
+    # 1/8" of room on every side (the window is an inside cut). Report's check 13: 1/4" bit,
+    # 14" box, 13 x 13" window, rear hatch 50 x 33 %.
+    cfg = copy.deepcopy(BASE)
+    cfg.update({"TOOL_D_PRIMARY": 6.35, "HATCH_ENABLED": True, "HATCH_WIDTH_PCT": 50.0,
+                "HATCH_HEIGHT_PCT": 33.0, "HATCH_RAISE_IN": 3.0})
+    C.CONFIG.clear(); C.CONFIG.update(cfg)
+    _, gb = C.generate_back_panel_parts("T")
+    lid_w = gb["hatch"]["lid_w"]
+    nested = lambda svg: bool(re.search(r'id="FRONT_\w+_\d+"', svg))
+    packed = lambda svg: 'id="BACK_PANEL_HATCH_LID"' in svg
+    assert (13 - lid_w) / 2 >= 0.375 and nested(build(cfg))      # 2.70 in of room each side
+    cfg["WINDOW_WIDTH_IN"] = lid_w + 2 * 0.37                    # room for a 1/8" bit, not a 1/4" one
+    svg = build(cfg)
+    assert not nested(svg) and packed(svg), "lid nested with 0.37 in of room and a 1/4 in bit"
+    ok, report = C.verify_dimensions(svg, C.CONFIG)
+    assert ok, report
+    cfg["TOOL_D_PRIMARY"] = 3.175
+    assert nested(build(cfg))
+    print("  PASS [CNC-13] lid nests only with bit + 1/8 in of room (0.37 in: yes for 1/8 in bit, no for 1/4 in)")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.44
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.45
 # ========================================
-# PRODUCTION RELEASE v1.44  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.45  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -388,7 +388,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.44"
+APP_VERSION = "1.45"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -399,6 +399,7 @@ REAR_HATCH_LID_HOLE_DIA_IN = 0.2        # holes in the lid, on the same centres
 # is cut through.
 REAR_HATCH_EDGE_CLEAR_IN = 0.125
 BACK_PANEL_CLEAT_HOLE_R_IN = 0.1        # #10 screw through holes for the box cleat (~0.2" dia)
+NEST_CLEAR_EXTRA_IN = 0.125             # CNC-13: wood kept between the window's cut and a nested lid
 
 # Bottom access panel (January v1.27-v1.28 spec).
 BOTTOM_HATCH_HEIGHT_IN = 3.395          # fixed opening height across the rail's depth (v1.28)
@@ -1074,6 +1075,17 @@ def rear_hatch_layout_in(cfg):
         'fit': fit,
     }
 
+def hatch_lid_nests(lid_w, lid_h, cfg):
+    """CNC-13: whether the rear-hatch lid is cut from the front window's offcut. The window
+    is an inside contour, so its bit runs up to one diameter inside the window line; the
+    lid nests only when that leaves NEST_CLEAR_EXTRA_IN of wood before the lid on every
+    side. The Router Bit field (TOOL_D_PRIMARY) sets the diameter."""
+    if not cfg.get('WINDOW_ENABLED', False):
+        return False
+    need = convert_to_inches(cfg.get('TOOL_D_PRIMARY', 6.35)) + NEST_CLEAR_EXTRA_IN
+    return ((cfg.get('WINDOW_WIDTH_IN', 0) - lid_w) / 2.0 >= need - 1e-9 and
+            (cfg.get('WINDOW_HEIGHT_IN', 0) - lid_h) / 2.0 >= need - 1e-9)
+
 def validate_rear_hatch(cfg):
     """CNC-10: problems that make the rear access panel unbuildable, as plain sentences for
     the dialog; empty when it fits or is switched off. Its shelf must keep
@@ -1743,13 +1755,8 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
     if hatch_data:
         lid_w = hatch_data['lid_w']
         lid_h = hatch_data['lid_h']
-        win_w = CONFIG.get('WINDOW_WIDTH_IN', 0)
-        win_h = CONFIG.get('WINDOW_HEIGHT_IN', 0)
-        is_nested = False
-        if CONFIG.get('WINDOW_ENABLED', False):
-             if lid_w < (win_w - 0.5) and lid_h < (win_h - 0.5):
-                 is_nested = True
-        
+        is_nested = hatch_lid_nests(lid_w, lid_h, CONFIG)   # CNC-13: was lid < window - 0.5"
+
         if is_nested:
             for p in parts_to_pack:
                 if p['id'] == "FRONT":
@@ -2915,8 +2922,9 @@ class CarbideOptimizedApp(tk.Tk):
 
         # Router Bit, Glue Gap
         # M2 FIX: geometry is emitted nominal (CAM applies tool compensation), so this value
-        # does not change the SVGs today. Labelled "(reference)" and still written to
-        # config.json for CAM setup, rather than implying it drives the output.
+        # does not change any part's shape. Labelled "(reference)" and still written to
+        # config.json for CAM setup, rather than implying it drives the output. CNC-13: it
+        # does set the room a rear-hatch lid needs to be cut from the window's offcut.
         self.make_row_fixed_unit(dim_frame, 5, "Router Bit (reference)", self.vars['tool_primary'], "in")
         self.make_row_with_units(dim_frame, 6, "Glue Gap", self.vars['glue_gap'], self.vars['glue_gap_unit'])
 
@@ -3544,7 +3552,12 @@ class CarbideOptimizedApp(tk.Tk):
             
             files_back, geom_back = generate_back_panel_parts(next_ver)
             all_files.update(files_back)
-            
+            # CNC-13: once the window is cut, the offcut holding a nested lid is loose.
+            lid = geom_back.get('hatch')
+            if lid and hatch_lid_nests(lid['lid_w'], lid['lid_h'], CONFIG):
+                gen_warnings.append("The rear access lid is cut from the front window's offcut: cut the "
+                                    "lid before the window, or tab the window, so the offcut stays put.")
+
             files_cleats, cleat_data = generate_french_cleats(next_ver)
             all_files.update(files_cleats)
             
