@@ -52,3 +52,7 @@ venv/
 # The generator rewrites this on every run, including an absolute output-folder path;
 # cnc_generator_settings.example.json shows its format.
 CNC Plans/cnc_generator_settings.json
+
+# === Third-party code without a licence to redistribute (CNC-17) ===
+# Vectric's Box Creator gadget, kept on disk for reference only.
+PROJECT CLOSET/Box_Creator copied from Vetric app/

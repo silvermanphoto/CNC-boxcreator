@@ -65,8 +65,9 @@ CNC Plans/                   the live generator (cnc_generator.py, with
   For Fabrication/           final DWG drawings sent to fabrication
   JOINERY_MATH_FIXES.md      notes on the joint-math corrections
 ARCHIVED PYTHON CODE/        oldest archived version
-PROJECT CLOSET/              reference material, incl. the Vectric Box Creator
-                             gadget (Lua) this project outgrew
+PROJECT CLOSET/              reference material, incl. an MIT-licensed box-joint
+                             project (Vectric's Box Creator gadget, which this
+                             project outgrew, is not published here)
 Full_Blind_Box_Joint.jpg     joinery reference photos
 Woodcraft Example *.png      shadowbox style references
 17HM19-2004S.STEP            CAD model of the stepper motor the housing pockets fit
