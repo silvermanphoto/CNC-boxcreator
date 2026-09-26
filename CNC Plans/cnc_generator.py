@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.42
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.43
 # ========================================
-# PRODUCTION RELEASE v1.42  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.43  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -388,7 +388,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.42"
+APP_VERSION = "1.43"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -1376,6 +1376,7 @@ class BinPacker:
     def __init__(self, gap=0.5):
         self.gap = gap
         self.sheets = [] # List of {'w': w, 'h': h, 'items': []}
+        self.unplaced = [] # CNC-11: items too big for any 48x96 sheet
         # Start with one 48x48 sheet
         self.add_sheet(48.0, 48.0)
 
@@ -1441,6 +1442,10 @@ class BinPacker:
                         last_sheet['h'] = 96.0
                         if not self._fit_item_in_sheet(last_sheet, item):
                             print(f"WARNING: Item {item['id']} too big for 48x96 sheet!")
+                            # CNC-11: record it for the layout check, and drop the empty
+                            # sheet opened for it instead of leaving it in the canvas.
+                            self.sheets.pop()
+                            self.unplaced.append(item)
 
     def _fit_item_in_sheet(self, sheet, item):
         """Try to fit item in sheet shelves. Rotates if necessary."""
@@ -1798,6 +1803,9 @@ def generate_master_carbide_layout(version, f_front, f_back, f_top, f_bot, f_lef
     packer.pack_items(parts_to_pack)
     if problems is not None:
         problems.extend(sheet_edge_problems(packer.sheets))  # CNC-05
+        for item in packer.unplaced:                          # CNC-11
+            problems.append(f"{item['id']} ({item['w']:.3f} x {item['h']:.3f} in) is too big for a "
+                            f"48 x 96 in sheet and is missing from the master layout.")
     
     # 3. GENERATE MASTER SVG (FLATTENED)
     

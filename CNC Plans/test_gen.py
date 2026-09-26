@@ -104,6 +104,7 @@ def run_test():
     test_cnc05_sheet_edges()
     test_cnc06_bottom_rail_checks()
     test_cnc10_rear_hatch_checks()
+    test_cnc11_oversize_parts()
 
     print("ALL ACCEPTANCE TESTS PASSED")
 
@@ -341,6 +342,25 @@ def test_cnc10_rear_hatch_checks():
     L = C.rear_hatch_layout_in(C.CONFIG)
     assert abs((sx - 2.0) - L["shelf_left"]) < 1e-4 and abs((2.0 + 14.0 - (sy + sh)) - L["shelf_bottom"]) < 1e-4
     print("  PASS [CNC-10] 90 % refused, 85 % accepted on a 14 in box; bottom, top, cleat row and tiny openings checked")
+
+
+
+def test_cnc11_oversize_parts():
+    # CNC-11: a part too big for a 48 x 96 in sheet is reported (the layout check fails)
+    # instead of silently missing from the master, and no empty sheet is left behind.
+    cfg = copy.deepcopy(BASE)
+    cfg.update({"TOTAL_WIDTH": 50 * 25.4, "TOTAL_HEIGHT": 50 * 25.4, "WINDOW_WIDTH_IN": 40.0, "WINDOW_HEIGHT_IN": 40.0})
+    probs = []
+    svg = build(cfg, problems=probs)
+    missing = sorted(p.split(" ")[0] for p in probs if "too big for a 48 x 96 in sheet" in p)
+    assert missing == ["BACK", "FRONT"], probs
+    ok, report = C.verify_dimensions(svg, C.CONFIG, extra_problems=probs)
+    assert not ok and "FRONT (50.000 x 50.000 in) is too big" in report, report
+    packer = C.BinPacker()
+    packer.pack_items([{"id": "BIG", "w": 50.0, "h": 50.0}, {"id": "RAIL", "w": 50.0, "h": 2.5}])
+    assert [i["id"] for i in packer.unplaced] == ["BIG"] and len(packer.sheets) == 1, (packer.unplaced, packer.sheets)
+    assert all(s["items"] for s in packer.sheets), "an empty sheet was left in the layout"
+    print("  PASS [CNC-11] 50 x 50 in box: FRONT and BACK reported as missing, check fails, no empty sheet left")
 
 
 if __name__ == "__main__":
