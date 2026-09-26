@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.40
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.41
 # ========================================
-# PRODUCTION RELEASE v1.40  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.41  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -388,7 +388,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.40"
+APP_VERSION = "1.41"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 REAR_HATCH_FLANGE_IN = 0.64             # lip width around the opening
@@ -3184,8 +3184,11 @@ class CarbideOptimizedApp(tk.Tk):
             # Fall back to built-in defaults if no settings file
             defaults = {
                 'width': "40.0",
+                'width_unit': 'in',   # CNC-09: every unit radio resets with its value
                 'height': "40.0",
+                'height_unit': 'in',
                 'depth': "4.0",
+                'depth_unit': 'in',
                 'stock_thk': "15.0",
                 'stock_unit': 'mm',
                 'tool_primary': "0.25",
@@ -3201,7 +3204,9 @@ class CarbideOptimizedApp(tk.Tk):
                 'motor_x_val': "",
                 'window_enabled': True,
                 'window_w': "",
+                'window_w_unit': 'in',
                 'window_h': "",
+                'window_h_unit': 'in',
                 'hatch_enabled': True,
                 'hatch_width_pct': "50.0",
                 'hatch_height_pct': "33.0",
@@ -3210,12 +3215,19 @@ class CarbideOptimizedApp(tk.Tk):
                 'cleats_enabled': True,
                 'bottom_hatch_enabled': False,
                 'bottom_hatch_w': "",
+                'bottom_hatch_w_unit': 'in',
                 'bottom_hatch_h': "",
+                'bottom_hatch_h_unit': 'in',
                 'bottom_hatch_x_pct': "50.0"
             }
             for key, val in defaults.items():
                 if key in self.vars:
                     self.vars[key].set(val)
+
+        # CNC-09: the unit tracker must match the radios after a reload, or the next unit
+        # click converts from the pre-reset unit (or not at all: 0.4 mm became 0.4 in).
+        for val_key, unit_key in self.unit_map.items():
+            self.last_units[val_key] = self.vars[unit_key].get()
 
     def run_generation(self):
         try:
@@ -3314,21 +3326,17 @@ class CarbideOptimizedApp(tk.Tk):
             # REAR ACCESS PANEL CONFIG
             CONFIG['HATCH_ENABLED'] = self.vars['hatch_enabled'].get()
             if CONFIG['HATCH_ENABLED']:
-                try:
-                    # Parse percentages
-                    w_pct = float(self.vars['hatch_width_pct'].get().strip())
-                    h_pct = float(self.vars['hatch_height_pct'].get().strip())
-                    CONFIG['HATCH_WIDTH_PCT'] = w_pct
-                    CONFIG['HATCH_HEIGHT_PCT'] = h_pct
-                except:
-                    pass 
-                # Parse Raise (Unit aware)
-                try:
-                    raise_mm = get_mm('hatch_raise', 'hatch_raise_unit')
-                    CONFIG['HATCH_RAISE_IN'] = convert_to_inches(raise_mm)
-                except ValueError:
-                    CONFIG['HATCH_ENABLED'] = False # Disable if invalid input
-                    print("Invalid Hatch Input - Disabling")
+                # CNC-18: a mistyped percentage or raise stops the run with the field named.
+                # Both used to be swallowed: the percentages kept the previous run's value
+                # (CONFIG outlives a run) and a bad raise silently dropped the panel.
+                for var_name, cfg_key, label in (('hatch_width_pct', 'HATCH_WIDTH_PCT', 'Width %'),
+                                                 ('hatch_height_pct', 'HATCH_HEIGHT_PCT', 'Height %')):
+                    val_str = self.vars[var_name].get().strip()
+                    try:
+                        CONFIG[cfg_key] = float(val_str)
+                    except ValueError:
+                        raise ValueError(f"The rear access panel's {label} is not a number: '{val_str}'.")
+                CONFIG['HATCH_RAISE_IN'] = convert_to_inches(get_mm('hatch_raise', 'hatch_raise_unit'))
             
             # Dimensions
             CONFIG['TOTAL_WIDTH'] = get_mm('width', 'width_unit')
