@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# CNC GENERATOR - CARBIDE-OPTIMIZED v1.47
+# CNC GENERATOR - CARBIDE-OPTIMIZED v1.48
 # ========================================
-# PRODUCTION RELEASE v1.47  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
+# PRODUCTION RELEASE v1.48  (Sept 2026 review fixes; see git log. v1.27-v1.29 belong to the
 #                            January monolith copies, so this lineage skips those numbers.)
 #
 # Key Changes:
@@ -389,7 +389,7 @@ COLOR_WINDOW = "#af00af"     # Purple - window cutout
 STROKE_WIDTH = "0.001"  # inches - thin stroke for CNC precision
 
 # Shown in the window's corner badge; keep in step with the header above.
-APP_VERSION = "1.47"
+APP_VERSION = "1.48"
 
 # Rear access panel (January v1.26 spec): fixed lip (rabbet) width and screw holes.
 # REAR_HATCH_FLANGE_IN (0.64" lip around the opening) is in utils.py, shared with the preview.
@@ -2857,7 +2857,7 @@ class CarbideOptimizedApp(tk.Tk):
         BG_COLOR = "#f0f0f0"        # Light gray background
         TEXT_PRIMARY = "#333333"     # Dark gray text
         TEXT_SECONDARY = "#666666"   # Medium gray text
-        TEXT_HINT = "#999999"        # Light gray hints
+        TEXT_HINT = "#71726d"        # Grey hints (CNC-21: #999999 was too pale)
         SECTION_HEADER_COLOR = "#a9d4f0" # Light Blue
         INPUT_BG = "#ffffff"         # White input fields
         
@@ -2867,10 +2867,10 @@ class CarbideOptimizedApp(tk.Tk):
         FONT_SECTION = ("Lato", 12, "bold") # Headers
         FONT_LABEL = ("Lato", 11)
         FONT_INPUT = ("Lato", 11)
-        FONT_WARNING = ("Futura", 9)
+        FONT_WARNING = FONT_LABEL          # CNC-21: was Futura 9
         FONT_BUTTON = ("Lato", 13, "bold")
-        FONT_VERSION = ("Lato", 9)
-        FONT_HINT = ("Lato", 9)
+        FONT_VERSION = ("Lato", 12)        # CNC-21: was 9
+        FONT_HINT = ("Lato", 12)           # CNC-21: was 9
 
         self.ui_colors = {
             'bg': BG_COLOR, 'text': TEXT_PRIMARY, 'hint': TEXT_HINT,
@@ -2923,9 +2923,10 @@ class CarbideOptimizedApp(tk.Tk):
         # Stock Thickness
         self.make_row_with_units(dim_frame, 3, "Stock Thickness", self.vars['stock_thk'], self.vars['stock_unit'])
         
-        # Warning Label (Futura 9pt, #8c8c8c)
+        # Warning Label: decides whether the joints fit, so label size in the main text colour
+        # (CNC-21: was Futura 9pt, #8c8c8c)
         tk.Label(dim_frame, text="Use calipers to measure exact thickness of stock, or joinery will not be tight",
-                 font=FONT_WARNING, bg=BG_COLOR, fg="#8c8c8c").grid(row=4, column=0, columnspan=5, sticky="w", padx=(5,0), pady=(0, 8))
+                 font=FONT_WARNING, bg=BG_COLOR, fg=TEXT_PRIMARY).grid(row=4, column=0, columnspan=5, sticky="w", padx=(5,0), pady=(0, 8))
 
         # Router Bit, Glue Gap
         # M2 FIX: geometry is emitted nominal (CAM applies tool compensation), so this value
@@ -3030,9 +3031,9 @@ class CarbideOptimizedApp(tk.Tk):
         self.make_row_with_units(b_hatch_frame, 3, "X Position %", self.vars['bottom_hatch_x_pct'], None)
         
         # Status Label: black since January v1.28 (the requested #ffe102 yellow was unreadable
-        # on the light grey background).
+        # on the light grey background); label size since CNC-20 (was Futura 10).
         status_lbl = tk.Label(b_hatch_frame, textvariable=self.vars['bottom_hatch_x_status'],
-                              font=("Futura", 10), fg="#000000", padx=5, pady=2)
+                              font=FONT_LABEL, fg="#000000", padx=5, pady=2)
         status_lbl.grid(row=4, column=0, columnspan=4, sticky="w", pady=(5,0))
         
         # Update initially
@@ -3246,7 +3247,8 @@ class CarbideOptimizedApp(tk.Tk):
                 except:
                     return 0.0
 
-            rail_w_in = get_val_in('width', 'width_unit') - (2 * get_val_in('stock_thk', 'stock_unit'))
+            stock_in = get_val_in('stock_thk', 'stock_unit')
+            rail_w_in = get_val_in('width', 'width_unit') - (2 * stock_in)
             hatch_w_in = get_val_in('bottom_hatch_w', 'bottom_hatch_w_unit')
             x_pct = 0.0
             try:
@@ -3258,14 +3260,26 @@ class CarbideOptimizedApp(tk.Tk):
                 self.vars['bottom_hatch_x_status'].set("")
                 return
             
-            # X Calculation
+            # X Calculation, along the rail body (from the inside face of the left side)
             center_x = rail_w_in * (x_pct / 100.0)
             start_x = center_x - (hatch_w_in / 2.0)
             end_x = center_x + (hatch_w_in / 2.0)
-            
-            if start_x < 0: start_x = 0 # Clamp for display logic safety? No user wants exact.
-            
-            self.vars['bottom_hatch_x_status'].set(f"Access hatch spans between {start_x:.2f}\" and {end_x:.2f}\" from the left corner of the frame")
+
+            # CNC-20: positions are reported from the frame's outer left corner, one stock
+            # thickness left of the rail body, and an opening whose lip would run past a rail
+            # end is reported instead of being clamped to zero.
+            lip = BOTTOM_HATCH_FLANGE_IN
+            if hatch_w_in > rail_w_in - 2 * lip + 1e-9:
+                self.vars['bottom_hatch_x_status'].set(
+                    f"Too wide for the bottom rail: the opening can be {max(rail_w_in - 2 * lip, 0):.2f}\" at most")
+            elif start_x - lip < -1e-9 or end_x + lip > rail_w_in + 1e-9:
+                self.vars['bottom_hatch_x_status'].set(
+                    f"Too near a rail end: keep it between {stock_in + lip:.2f}\" and "
+                    f"{stock_in + rail_w_in - lip:.2f}\" from the left corner")
+            else:
+                self.vars['bottom_hatch_x_status'].set(
+                    f"Access hatch spans between {start_x + stock_in:.2f}\" and {end_x + stock_in:.2f}\" "
+                    f"from the left corner of the frame")
         except:
             self.vars['bottom_hatch_x_status'].set("")
 
